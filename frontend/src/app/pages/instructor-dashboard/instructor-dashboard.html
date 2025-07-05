@@ -1,1 +1,198 @@
-<p>instructor-dashboard works!</p>
+<div class="min-h-screen bg-primary text-white">
+  <!-- Header -->
+  <header class="bg-primary border-b border-blue-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-6">
+        <div class="flex items-center">
+          <h1 class="text-2xl font-bold text-white">Instructor Dashboard</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <button (click)="createNewCourse()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors btn-hover">
+            <i class="fas fa-plus mr-2"></i>New Course
+          </button>
+          <button (click)="scheduleClass()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors btn-hover">
+            <i class="fas fa-calendar mr-2"></i>Schedule Class
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Loading State -->
+    <div *ngIf="loading" class="flex justify-center items-center h-64">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+    </div>
+
+    <!-- Dashboard Content -->
+    <div *ngIf="!loading">
+      <!-- Analytics Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Total Courses -->
+        <div class="bg-blue-900 rounded-lg p-6 border border-blue-800">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-600">
+              <i class="fas fa-book text-white text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-blue-300 text-sm font-medium">Total Courses</p>
+              <p class="text-2xl font-bold text-white">{{ analytics?.totalCourses || 0 }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Total Students -->
+        <div class="bg-blue-900 rounded-lg p-6 border border-blue-800">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-600">
+              <i class="fas fa-users text-white text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-blue-300 text-sm font-medium">Total Students</p>
+              <p class="text-2xl font-bold text-white">{{ analytics?.totalStudents || 0 }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Total Classes -->
+        <div class="bg-blue-900 rounded-lg p-6 border border-blue-800">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-yellow-600">
+              <i class="fas fa-chalkboard-teacher text-white text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-blue-300 text-sm font-medium">Total Classes</p>
+              <p class="text-2xl font-bold text-white">{{ analytics?.totalClasses || 0 }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Average Rating -->
+        <div class="bg-blue-900 rounded-lg p-6 border border-blue-800">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-purple-600">
+              <i class="fas fa-star text-white text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-blue-300 text-sm font-medium">Avg Rating</p>
+              <p class="text-2xl font-bold text-white">{{ analytics?.averageRating || 0 }}/5</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Courses Section -->
+        <div class="lg:col-span-2">
+          <div class="bg-blue-900 rounded-lg border border-blue-800">
+            <div class="px-6 py-4 border-b border-blue-800">
+              <h2 class="text-xl font-semibold text-white">My Courses</h2>
+            </div>
+            <div class="p-6">
+              <div *ngIf="courses.length === 0" class="text-center py-8">
+                <i class="fas fa-book text-blue-400 text-4xl mb-4"></i>
+                <p class="text-blue-300">No courses yet. Create your first course!</p>
+              </div>
+              
+                             <div *ngFor="let course of courses" class="mb-6 last:mb-0">
+                 <div class="bg-blue-800 rounded-lg p-4 border border-blue-700 hover:border-blue-600 transition-colors card-hover">
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <h3 class="text-lg font-semibold text-white mb-2">{{ course.title }}</h3>
+                      <p class="text-blue-300 text-sm mb-3">{{ course.description }}</p>
+                      <div class="flex items-center space-x-4">
+                        <span class="text-blue-400 text-sm">{{ course.category }}</span>
+                        <span [class]="getDifficultyColor(course.difficulty) + ' text-white text-xs px-2 py-1 rounded-full'">
+                          {{ getDifficultyText(course.difficulty) }}
+                        </span>
+                      </div>
+                    </div>
+                                         <div class="flex space-x-2">
+                       <button (click)="editCourse(course.id)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                         <i class="fas fa-edit mr-1"></i>Edit
+                       </button>
+                       <button (click)="viewCourse(course.id)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                         <i class="fas fa-eye mr-1"></i>View
+                       </button>
+                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions & Recent Activity -->
+        <div class="space-y-6">
+          <!-- Quick Actions -->
+          <div class="bg-blue-900 rounded-lg border border-blue-800">
+            <div class="px-6 py-4 border-b border-blue-800">
+              <h2 class="text-xl font-semibold text-white">Quick Actions</h2>
+            </div>
+            <div class="p-6 space-y-3">
+              <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                <i class="fas fa-plus mr-3"></i>Create New Course
+              </button>
+              <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                <i class="fas fa-calendar-plus mr-3"></i>Schedule Live Class
+              </button>
+              <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                <i class="fas fa-chart-bar mr-3"></i>View Analytics
+              </button>
+              <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                <i class="fas fa-users mr-3"></i>Manage Students
+              </button>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="bg-blue-900 rounded-lg border border-blue-800">
+            <div class="px-6 py-4 border-b border-blue-800">
+              <h2 class="text-xl font-semibold text-white">Recent Activity</h2>
+            </div>
+            <div class="p-6">
+              <div class="space-y-4">
+                <div class="flex items-start space-x-3">
+                  <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                  <div>
+                    <p class="text-white text-sm">New student enrolled in "Web Development"</p>
+                    <p class="text-blue-400 text-xs">2 hours ago</p>
+                  </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                  <div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                  <div>
+                    <p class="text-white text-sm">Live class scheduled for tomorrow</p>
+                    <p class="text-blue-400 text-xs">4 hours ago</p>
+                  </div>
+                </div>
+                <div class="flex items-start space-x-3">
+                  <div class="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
+                  <div>
+                    <p class="text-white text-sm">Course "React Development" updated</p>
+                    <p class="text-blue-400 text-xs">1 day ago</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Enrollments -->
+          <div class="bg-blue-900 rounded-lg border border-blue-800">
+            <div class="px-6 py-4 border-b border-blue-800">
+              <h2 class="text-xl font-semibold text-white">Recent Enrollments</h2>
+            </div>
+            <div class="p-6">
+              <div class="text-center">
+                <p class="text-3xl font-bold text-white">{{ analytics?.recentEnrollments || 0 }}</p>
+                <p class="text-blue-300 text-sm">This week</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
