@@ -1,1 +1,573 @@
-<p>assignments works!</p>
+<div class="min-h-screen bg-primary text-white">
+  <!-- Header -->
+  <header class="bg-primary border-b border-blue-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-6">
+        <div class="flex items-center">
+          <h1 class="text-2xl font-bold text-white">Assignment Management</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <button 
+            *ngIf="selectedTab === 'instructor'"
+            (click)="createAssignment()" 
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            <i class="fas fa-plus mr-2"></i>Create Assignment
+          </button>
+          <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors">
+            <i class="fas fa-download mr-2"></i>Export Grades
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="bg-blue-900 border-b border-blue-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex space-x-8">
+        <button 
+          (click)="switchTab('instructor')"
+          [class]="selectedTab === 'instructor' ? 'border-b-2 border-blue-500 text-blue-300' : 'text-blue-400 hover:text-blue-300'"
+          class="py-4 px-1 font-medium transition-colors"
+        >
+          <i class="fas fa-chalkboard-teacher mr-2"></i>Instructor View
+        </button>
+        <button 
+          (click)="switchTab('student')"
+          [class]="selectedTab === 'student' ? 'border-b-2 border-blue-500 text-blue-300' : 'text-blue-400 hover:text-blue-300'"
+          class="py-4 px-1 font-medium transition-colors"
+        >
+          <i class="fas fa-user-graduate mr-2"></i>Student View
+        </button>
+        <button 
+          (click)="switchTab('grading')"
+          [class]="selectedTab === 'grading' ? 'border-b-2 border-blue-500 text-blue-300' : 'text-blue-400 hover:text-blue-300'"
+          class="py-4 px-1 font-medium transition-colors"
+        >
+          <i class="fas fa-check-circle mr-2"></i>Grading
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Loading State -->
+    <div *ngIf="loading" class="flex justify-center items-center h-64">
+      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+    </div>
+
+    <!-- Instructor View -->
+    <div *ngIf="!loading && selectedTab === 'instructor'">
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-blue-900 rounded-lg p-6 border border-blue-800">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-blue-600">
+              <i class="fas fa-file-alt text-white text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-blue-300 text-sm font-medium">Total Assignments</p>
+              <p class="text-2xl font-bold text-white">{{ stats?.totalAssignments || 0 }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-blue-900 rounded-lg p-6 border border-blue-800">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-600">
+              <i class="fas fa-globe text-white text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-blue-300 text-sm font-medium">Published</p>
+              <p class="text-2xl font-bold text-white">{{ stats?.publishedAssignments || 0 }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-blue-900 rounded-lg p-6 border border-blue-800">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-yellow-600">
+              <i class="fas fa-paper-plane text-white text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-blue-300 text-sm font-medium">Submissions</p>
+              <p class="text-2xl font-bold text-white">{{ stats?.totalSubmissions || 0 }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-blue-900 rounded-lg p-6 border border-blue-800">
+          <div class="flex items-center">
+            <div class="p-3 rounded-full bg-red-600">
+              <i class="fas fa-clock text-white text-xl"></i>
+            </div>
+            <div class="ml-4">
+              <p class="text-blue-300 text-sm font-medium">Pending Grading</p>
+              <p class="text-2xl font-bold text-white">{{ stats?.pendingGrading || 0 }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search and Filters -->
+      <div class="bg-blue-900 rounded-lg p-6 border border-blue-800 mb-6">
+        <div class="flex flex-col md:flex-row gap-4">
+          <div class="flex-1">
+            <input 
+              type="text" 
+              [(ngModel)]="searchTerm"
+              placeholder="Search assignments..."
+              class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+            >
+          </div>
+          <div class="md:w-48">
+            <select 
+              [(ngModel)]="selectedStatus"
+              class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">All Status</option>
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+            </select>
+          </div>
+          <div class="md:w-48">
+            <select 
+              [(ngModel)]="selectedCourse"
+              class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">All Courses</option>
+              <option value="course1">Web Development</option>
+              <option value="course2">React Development</option>
+              <option value="course3">Database Management</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assignments Table -->
+      <div class="bg-blue-900 rounded-lg border border-blue-800">
+        <div class="px-6 py-4 border-b border-blue-800">
+          <h2 class="text-xl font-semibold text-white">All Assignments</h2>
+        </div>
+        <div class="p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="border-b border-blue-700">
+                  <th class="py-3 px-4 text-blue-300 font-medium">Title</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Course</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Due Date</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Points</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Status</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Submissions</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let assignment of getFilteredAssignments()" class="border-b border-blue-800 hover:bg-blue-800">
+                  <td class="py-4 px-4">
+                    <div>
+                      <p class="text-white font-medium">{{ assignment.title }}</p>
+                      <p class="text-blue-400 text-sm">{{ assignment.description.substring(0, 50) }}...</p>
+                    </div>
+                  </td>
+                  <td class="py-4 px-4 text-white">{{ assignment.courseTitle }}</td>
+                  <td class="py-4 px-4">
+                    <div>
+                      <p class="text-white">{{ formatDate(assignment.dueDate) }}</p>
+                      <p [class]="getTimeRemainingColor(assignment.dueDate)" class="text-sm">
+                        {{ getTimeRemaining(assignment.dueDate) }}
+                      </p>
+                    </div>
+                  </td>
+                  <td class="py-4 px-4 text-white">{{ assignment.totalPoints }} pts</td>
+                  <td class="py-4 px-4">
+                    <span [class]="assignment.isPublished ? 'text-green-500 bg-green-100' : 'text-yellow-500 bg-yellow-100'" class="px-2 py-1 rounded-full text-xs font-medium">
+                      <i [class]="assignment.isPublished ? 'fas fa-globe' : 'fas fa-edit'" class="mr-1"></i>
+                      {{ assignment.isPublished ? 'Published' : 'Draft' }}
+                    </span>
+                  </td>
+                  <td class="py-4 px-4 text-white">{{ assignment.submissions.length }}</td>
+                  <td class="py-4 px-4">
+                    <div class="flex space-x-2">
+                      <button (click)="editAssignment(assignment)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-edit mr-1"></i>Edit
+                      </button>
+                      <button (click)="viewSubmissions(assignment)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-eye mr-1"></i>View
+                      </button>
+                      <button 
+                        *ngIf="!assignment.isPublished" 
+                        (click)="publishAssignment(assignment)" 
+                        class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                      >
+                        <i class="fas fa-globe mr-1"></i>Publish
+                      </button>
+                      <button 
+                        *ngIf="assignment.isPublished" 
+                        (click)="unpublishAssignment(assignment)" 
+                        class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                      >
+                        <i class="fas fa-eye-slash mr-1"></i>Unpublish
+                      </button>
+                      <button (click)="deleteAssignment(assignment)" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-trash mr-1"></i>Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Student View -->
+    <div *ngIf="!loading && selectedTab === 'student'">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div *ngFor="let assignmentView of getFilteredStudentAssignments()" class="bg-blue-900 rounded-lg border border-blue-800 p-6">
+          <div class="flex justify-between items-start mb-4">
+            <h3 class="text-lg font-semibold text-white">{{ assignmentView.assignment.title }}</h3>
+            <span 
+              [class]="assignmentView.isSubmitted ? (assignmentView.isGraded ? 'bg-green-600' : 'bg-yellow-600') : 'bg-blue-600'" 
+              class="text-white px-2 py-1 rounded text-xs"
+            >
+              {{ assignmentView.isSubmitted ? (assignmentView.isGraded ? 'Graded' : 'Submitted') : 'Pending' }}
+            </span>
+          </div>
+          
+          <p class="text-blue-300 text-sm mb-4">{{ assignmentView.assignment.description }}</p>
+          
+          <div class="space-y-2 mb-4">
+            <div class="flex justify-between text-sm">
+              <span class="text-blue-400">Course:</span>
+              <span class="text-white">{{ assignmentView.assignment.courseTitle }}</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-blue-400">Due Date:</span>
+              <span [class]="getTimeRemainingColor(assignmentView.assignment.dueDate)" class="font-medium">
+                {{ formatDate(assignmentView.assignment.dueDate) }}
+              </span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-blue-400">Points:</span>
+              <span class="text-white">{{ assignmentView.assignment.totalPoints }} pts</span>
+            </div>
+            <div class="flex justify-between text-sm">
+              <span class="text-blue-400">Time Limit:</span>
+              <span class="text-white">{{ assignmentView.assignment.timeLimit ? formatTime(assignmentView.assignment.timeLimit) : 'No limit' }}</span>
+            </div>
+          </div>
+
+          <div *ngIf="assignmentView.submission" class="mb-4 p-3 bg-blue-800 rounded">
+            <div class="flex justify-between text-sm">
+              <span class="text-blue-300">Score:</span>
+              <span [class]="getGradeColor(assignmentView.submission.grade)" class="font-bold">
+                {{ assignmentView.submission.score }}/{{ assignmentView.submission.totalPoints }} ({{ assignmentView.submission.grade }})
+              </span>
+            </div>
+            <div class="flex justify-between text-sm mt-1">
+              <span class="text-blue-300">Submitted:</span>
+              <span class="text-white">{{ formatDate(assignmentView.submission.submittedAt) }}</span>
+            </div>
+          </div>
+
+          <div class="flex space-x-2">
+            <button 
+              *ngIf="assignmentView.canSubmit"
+              (click)="takeAssignment(assignmentView.assignment)" 
+              class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors flex-1"
+            >
+              <i class="fas fa-play mr-1"></i>Start Assignment
+            </button>
+            <button 
+              *ngIf="!assignmentView.canSubmit && assignmentView.submission"
+              (click)="viewSubmission(assignmentView.submission)" 
+              class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm transition-colors flex-1"
+            >
+              <i class="fas fa-eye mr-1"></i>View Results
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grading View -->
+    <div *ngIf="!loading && selectedTab === 'grading'">
+      <div class="bg-blue-900 rounded-lg border border-blue-800">
+        <div class="px-6 py-4 border-b border-blue-800">
+          <h2 class="text-xl font-semibold text-white">Pending Grading</h2>
+        </div>
+        <div class="p-6">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="border-b border-blue-700">
+                  <th class="py-3 px-4 text-blue-300 font-medium">Student</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Assignment</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Submitted</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Time Spent</th>
+                  <th class="py-3 px-4 text-blue-300 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let submission of getPendingGrading()" class="border-b border-blue-800 hover:bg-blue-800">
+                  <td class="py-4 px-4">
+                    <p class="text-white font-medium">{{ submission.studentName }}</p>
+                  </td>
+                  <td class="py-4 px-4">
+                    <p class="text-white font-medium">{{ getAssignmentById(submission.assignmentId)?.title }}</p>
+                  </td>
+                  <td class="py-4 px-4 text-white">{{ formatDate(submission.submittedAt) }}</td>
+                  <td class="py-4 px-4 text-white">{{ formatTime(submission.timeSpent) }}</td>
+                  <td class="py-4 px-4">
+                    <div class="flex space-x-2">
+                      <button (click)="gradeSubmission(submission)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-check-circle mr-1"></i>Grade
+                      </button>
+                      <button (click)="autoGradeSubmission(submission)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-magic mr-1"></i>Auto Grade
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Assignment Creation/Editing Modal -->
+    <div *ngIf="isCreatingAssignment || isEditingAssignment" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-blue-900 rounded-lg p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <h2 class="text-2xl font-bold text-white mb-6">
+          {{ isCreatingAssignment ? 'Create New Assignment' : 'Edit Assignment' }}
+        </h2>
+        
+        <form (ngSubmit)="saveAssignment()" class="space-y-4">
+          <div>
+            <label class="block text-blue-300 text-sm font-medium mb-2">Title</label>
+            <input 
+              type="text" 
+              [(ngModel)]="assignmentForm.title" 
+              name="title"
+              class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+              required
+            >
+          </div>
+          
+          <div>
+            <label class="block text-blue-300 text-sm font-medium mb-2">Description</label>
+            <textarea 
+              [(ngModel)]="assignmentForm.description" 
+              name="description"
+              rows="3"
+              class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+              required
+            ></textarea>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-blue-300 text-sm font-medium mb-2">Course</label>
+              <select 
+                [(ngModel)]="assignmentForm.courseId" 
+                name="courseId"
+                class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+                required
+              >
+                <option value="">Select Course</option>
+                <option value="course1">Web Development Fundamentals</option>
+                <option value="course2">Advanced React Development</option>
+                <option value="course3">Database Management Systems</option>
+              </select>
+            </div>
+            
+            <div>
+              <label class="block text-blue-300 text-sm font-medium mb-2">Due Date</label>
+              <input 
+                type="datetime-local" 
+                [(ngModel)]="assignmentForm.dueDate" 
+                name="dueDate"
+                class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+                required
+              >
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-blue-300 text-sm font-medium mb-2">Total Points</label>
+              <input 
+                type="number" 
+                [(ngModel)]="assignmentForm.totalPoints" 
+                name="totalPoints"
+                class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+                min="1"
+                required
+              >
+            </div>
+            
+            <div>
+              <label class="block text-blue-300 text-sm font-medium mb-2">Time Limit (minutes)</label>
+              <input 
+                type="number" 
+                [(ngModel)]="assignmentForm.timeLimit" 
+                name="timeLimit"
+                class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+                min="0"
+                placeholder="No limit"
+              >
+            </div>
+          </div>
+          
+          <div class="flex items-center">
+            <input 
+              type="checkbox" 
+              [(ngModel)]="assignmentForm.isPublished" 
+              name="isPublished"
+              class="mr-2"
+            >
+            <label class="text-blue-300 text-sm">Publish immediately</label>
+          </div>
+          
+          <div class="flex justify-end space-x-4 pt-4">
+            <button 
+              type="button" 
+              (click)="resetForms()" 
+              class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              {{ isCreatingAssignment ? 'Create' : 'Save' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Assignment Taking Modal -->
+    <div *ngIf="isTakingAssignment && selectedAssignment" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-blue-900 rounded-lg p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-white">{{ selectedAssignment.title }}</h2>
+          <div class="flex items-center space-x-4">
+            <div *ngIf="timeRemaining > 0" class="bg-red-600 text-white px-4 py-2 rounded-lg">
+              <i class="fas fa-clock mr-2"></i>{{ formatTime(timeRemaining) }}
+            </div>
+            <button (click)="resetForms()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors">
+              <i class="fas fa-times mr-2"></i>Exit
+            </button>
+          </div>
+        </div>
+        
+        <div class="mb-6">
+          <div class="bg-blue-800 rounded-lg p-4">
+            <div class="flex justify-between items-center">
+              <span class="text-blue-300">Progress: {{ currentQuestionIndex + 1 }} of {{ selectedAssignment.questions.length }}</span>
+              <span class="text-blue-300">{{ getScorePercentage(0, selectedAssignment.totalPoints) }}% Complete</span>
+            </div>
+            <div class="w-full bg-blue-700 rounded-full h-2 mt-2">
+              <div class="bg-blue-500 h-2 rounded-full" [style.width.%]="getQuestionProgress()"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div *ngIf="getCurrentQuestion()" class="space-y-6">
+          <div class="bg-blue-800 rounded-lg p-6">
+            <div class="flex justify-between items-start mb-4">
+              <h3 class="text-lg font-semibold text-white">Question {{ currentQuestionIndex + 1 }}</h3>
+              <span class="text-blue-300">{{ getCurrentQuestion()?.points }} points</span>
+            </div>
+            
+            <p class="text-white mb-4">{{ getCurrentQuestion()?.questionText }}</p>
+            
+            <!-- Multiple Choice -->
+            <div *ngIf="getCurrentQuestion()?.questionType === 'MULTIPLE_CHOICE'" class="space-y-3">
+              <div 
+                *ngFor="let option of getCurrentQuestion()?.options" 
+                class="flex items-center p-3 border border-blue-700 rounded-lg hover:bg-blue-700 cursor-pointer"
+                [class.bg-blue-700]="studentAnswers[getCurrentQuestion()?.id || ''] === option.id"
+                (click)="selectAnswer(getCurrentQuestion()?.id || '', option.id)"
+              >
+                <input 
+                  type="radio" 
+                  [name]="'question-' + getCurrentQuestion()?.id"
+                  [value]="option.id"
+                  [checked]="studentAnswers[getCurrentQuestion()?.id || ''] === option.id"
+                  class="mr-3"
+                >
+                <span class="text-white">{{ option.optionText }}</span>
+              </div>
+            </div>
+            
+            <!-- True/False -->
+            <div *ngIf="getCurrentQuestion()?.questionType === 'TRUE_FALSE'" class="space-y-3">
+              <div 
+                class="flex items-center p-3 border border-blue-700 rounded-lg hover:bg-blue-700 cursor-pointer"
+                [class.bg-blue-700]="studentAnswers[getCurrentQuestion()?.id || ''] === 'true'"
+                (click)="selectAnswer(getCurrentQuestion()?.id || '', 'true')"
+              >
+                <input type="radio" [name]="'question-' + getCurrentQuestion()?.id" value="true" class="mr-3">
+                <span class="text-white">True</span>
+              </div>
+              <div 
+                class="flex items-center p-3 border border-blue-700 rounded-lg hover:bg-blue-700 cursor-pointer"
+                [class.bg-blue-700]="studentAnswers[getCurrentQuestion()?.id || ''] === 'false'"
+                (click)="selectAnswer(getCurrentQuestion()?.id || '', 'false')"
+              >
+                <input type="radio" [name]="'question-' + getCurrentQuestion()?.id" value="false" class="mr-3">
+                <span class="text-white">False</span>
+              </div>
+            </div>
+            
+            <!-- Essay/Short Answer -->
+            <div *ngIf="getCurrentQuestion()?.questionType === 'ESSAY' || getCurrentQuestion()?.questionType === 'SHORT_ANSWER'">
+              <textarea 
+                [(ngModel)]="studentAnswers[getCurrentQuestion()?.id || '']"
+                rows="6"
+                placeholder="Enter your answer here..."
+                class="w-full bg-blue-800 text-white px-4 py-2 rounded-lg border border-blue-700 focus:outline-none focus:border-blue-500"
+              ></textarea>
+            </div>
+          </div>
+          
+          <div class="flex justify-between">
+            <button 
+              (click)="previousQuestion()" 
+              [disabled]="currentQuestionIndex === 0"
+              class="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              <i class="fas fa-arrow-left mr-2"></i>Previous
+            </button>
+            
+            <div class="flex space-x-2">
+              <button 
+                (click)="submitAssignment()" 
+                class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors"
+              >
+                <i class="fas fa-paper-plane mr-2"></i>Submit Assignment
+              </button>
+              
+              <button 
+                *ngIf="currentQuestionIndex < selectedAssignment.questions.length - 1"
+                (click)="nextQuestion()" 
+                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+              >
+                Next<i class="fas fa-arrow-right ml-2"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
