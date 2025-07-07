@@ -85,7 +85,7 @@ export interface StudentEnrollmentHistory {
   providedIn: 'root'
 })
 export class EnrollmentService {
-  private apiUrl = 'http://localhost:3000/api'; // Adjust based on your backend URL
+  private apiUrl = 'http://localhost:3000/api/v1'; // Backend API URL with v1 prefix
 
   constructor(private http: HttpClient) { }
 
@@ -98,12 +98,16 @@ export class EnrollmentService {
     return this.http.get<Enrollment>(`${this.apiUrl}/enrollments/${id}`);
   }
 
+  getMyEnrollments(): Observable<Enrollment[]> {
+    return this.http.get<Enrollment[]>(`${this.apiUrl}/enrollments/my-enrollments`);
+  }
+
   getStudentEnrollments(studentId: string): Observable<Enrollment[]> {
-    return this.http.get<Enrollment[]>(`${this.apiUrl}/students/${studentId}/enrollments`);
+    return this.http.get<Enrollment[]>(`${this.apiUrl}/enrollments/my-enrollments`);
   }
 
   getCourseEnrollments(courseId: string): Observable<Enrollment[]> {
-    return this.http.get<Enrollment[]>(`${this.apiUrl}/courses/${courseId}/enrollments`);
+    return this.http.get<Enrollment[]>(`${this.apiUrl}/enrollments/course/${courseId}`);
   }
 
   createEnrollment(enrollment: Partial<Enrollment>): Observable<Enrollment> {
@@ -111,15 +115,25 @@ export class EnrollmentService {
   }
 
   updateEnrollment(id: string, enrollment: Partial<Enrollment>): Observable<Enrollment> {
-    return this.http.put<Enrollment>(`${this.apiUrl}/enrollments/${id}`, enrollment);
+    return this.http.patch<Enrollment>(`${this.apiUrl}/enrollments/${id}`, enrollment);
+  }
+
+  deleteEnrollment(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/enrollments/${id}`);
   }
 
   dropEnrollment(id: string, reason: string): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/enrollments/${id}/drop`, { reason });
+    return this.http.patch<void>(`${this.apiUrl}/enrollments/${id}`, { 
+      status: 'DROPPED',
+      reason 
+    });
   }
 
   completeEnrollment(id: string): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/enrollments/${id}/complete`, {});
+    return this.http.patch<void>(`${this.apiUrl}/enrollments/${id}`, { 
+      status: 'COMPLETED',
+      completionDate: new Date()
+    });
   }
 
   // Application Management
@@ -136,15 +150,15 @@ export class EnrollmentService {
   }
 
   approveApplication(id: string): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/enrollment-applications/${id}/approve`, {});
+    return this.http.patch<void>(`${this.apiUrl}/enrollment-applications/${id}/approve`, {});
   }
 
   rejectApplication(id: string, reason: string): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/enrollment-applications/${id}/reject`, { reason });
+    return this.http.patch<void>(`${this.apiUrl}/enrollment-applications/${id}/reject`, { reason });
   }
 
   waitlistApplication(id: string): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/enrollment-applications/${id}/waitlist`, {});
+    return this.http.patch<void>(`${this.apiUrl}/enrollment-applications/${id}/waitlist`, {});
   }
 
   // Analytics
@@ -153,7 +167,7 @@ export class EnrollmentService {
   }
 
   getCourseEnrollmentData(courseId: string): Observable<CourseEnrollmentData> {
-    return this.http.get<CourseEnrollmentData>(`${this.apiUrl}/courses/${courseId}/enrollment-data`);
+    return this.http.get<CourseEnrollmentData>(`${this.apiUrl}/enrollments/course/${courseId}/stats`);
   }
 
   getStudentEnrollmentHistory(studentId: string): Observable<StudentEnrollmentHistory> {
@@ -162,266 +176,10 @@ export class EnrollmentService {
 
   // Bulk Operations
   bulkApproveApplications(applicationIds: string[]): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/enrollment-applications/bulk-approve`, { applicationIds });
+    return this.http.patch<void>(`${this.apiUrl}/enrollment-applications/bulk-approve`, { applicationIds });
   }
 
   bulkRejectApplications(applicationIds: string[], reason: string): Observable<void> {
-    return this.http.put<void>(`${this.apiUrl}/enrollment-applications/bulk-reject`, { applicationIds, reason });
-  }
-
-  // Mock data for development
-  getMockEnrollments(): Enrollment[] {
-    return [
-      {
-        id: '1',
-        studentId: 'student1',
-        studentName: 'John Doe',
-        studentEmail: 'john.doe@email.com',
-        courseId: 'course1',
-        courseTitle: 'Web Development Fundamentals',
-        instructorId: 'instructor1',
-        instructorName: 'Dr. Sarah Johnson',
-        enrollmentDate: new Date('2024-01-15'),
-        status: 'ACTIVE',
-        progress: 75,
-        grade: 'A-',
-        certificateEarned: false,
-        paymentStatus: 'PAID',
-        amount: 299.99,
-        currency: 'USD',
-        lastActivityDate: new Date('2024-01-28'),
-        totalModules: 12,
-        completedModules: 9,
-        totalAssignments: 8,
-        completedAssignments: 6,
-        totalQuizzes: 6,
-        completedQuizzes: 5
-      },
-      {
-        id: '2',
-        studentId: 'student2',
-        studentName: 'Jane Smith',
-        studentEmail: 'jane.smith@email.com',
-        courseId: 'course2',
-        courseTitle: 'Advanced React Development',
-        instructorId: 'instructor2',
-        instructorName: 'Prof. Michael Chen',
-        enrollmentDate: new Date('2024-01-10'),
-        status: 'COMPLETED',
-        completionDate: new Date('2024-02-15'),
-        progress: 100,
-        grade: 'A+',
-        certificateEarned: true,
-        paymentStatus: 'PAID',
-        amount: 399.99,
-        currency: 'USD',
-        lastActivityDate: new Date('2024-02-15'),
-        totalModules: 15,
-        completedModules: 15,
-        totalAssignments: 10,
-        completedAssignments: 10,
-        totalQuizzes: 8,
-        completedQuizzes: 8
-      },
-      {
-        id: '3',
-        studentId: 'student3',
-        studentName: 'Bob Wilson',
-        studentEmail: 'bob.wilson@email.com',
-        courseId: 'course1',
-        courseTitle: 'Web Development Fundamentals',
-        instructorId: 'instructor1',
-        instructorName: 'Dr. Sarah Johnson',
-        enrollmentDate: new Date('2024-01-20'),
-        status: 'ACTIVE',
-        progress: 45,
-        grade: 'B+',
-        certificateEarned: false,
-        paymentStatus: 'PAID',
-        amount: 299.99,
-        currency: 'USD',
-        lastActivityDate: new Date('2024-01-27'),
-        totalModules: 12,
-        completedModules: 5,
-        totalAssignments: 8,
-        completedAssignments: 3,
-        totalQuizzes: 6,
-        completedQuizzes: 2
-      },
-      {
-        id: '4',
-        studentId: 'student4',
-        studentName: 'Alice Brown',
-        studentEmail: 'alice.brown@email.com',
-        courseId: 'course3',
-        courseTitle: 'Data Science Fundamentals',
-        instructorId: 'instructor3',
-        instructorName: 'Dr. Emily Davis',
-        enrollmentDate: new Date('2024-01-05'),
-        status: 'DROPPED',
-        progress: 30,
-        grade: 'C',
-        certificateEarned: false,
-        paymentStatus: 'REFUNDED',
-        amount: 499.99,
-        currency: 'USD',
-        lastActivityDate: new Date('2024-01-25'),
-        totalModules: 18,
-        completedModules: 5,
-        totalAssignments: 12,
-        completedAssignments: 2,
-        totalQuizzes: 10,
-        completedQuizzes: 1
-      },
-      {
-        id: '5',
-        studentId: 'student5',
-        studentName: 'Charlie Davis',
-        studentEmail: 'charlie.davis@email.com',
-        courseId: 'course2',
-        courseTitle: 'Advanced React Development',
-        instructorId: 'instructor2',
-        instructorName: 'Prof. Michael Chen',
-        enrollmentDate: new Date('2024-01-12'),
-        status: 'WAITLISTED',
-        progress: 0,
-        certificateEarned: false,
-        paymentStatus: 'PENDING',
-        amount: 399.99,
-        currency: 'USD',
-        lastActivityDate: new Date('2024-01-12'),
-        totalModules: 15,
-        completedModules: 0,
-        totalAssignments: 10,
-        completedAssignments: 0,
-        totalQuizzes: 8,
-        completedQuizzes: 0
-      }
-    ];
-  }
-
-  getMockApplications(): EnrollmentApplication[] {
-    return [
-      {
-        id: '1',
-        studentId: 'student6',
-        studentName: 'David Lee',
-        studentEmail: 'david.lee@email.com',
-        courseId: 'course1',
-        courseTitle: 'Web Development Fundamentals',
-        applicationDate: new Date('2024-01-30'),
-        status: 'PENDING',
-        documents: ['/uploads/transcript.pdf', '/uploads/resume.pdf'],
-        notes: 'Student shows strong interest in web development'
-      },
-      {
-        id: '2',
-        studentId: 'student7',
-        studentName: 'Emma Wilson',
-        studentEmail: 'emma.wilson@email.com',
-        courseId: 'course2',
-        courseTitle: 'Advanced React Development',
-        applicationDate: new Date('2024-01-29'),
-        status: 'APPROVED',
-        approvedBy: 'Prof. Michael Chen',
-        approvedAt: new Date('2024-01-30'),
-        documents: ['/uploads/portfolio.pdf'],
-        notes: 'Excellent portfolio, approved for advanced course'
-      },
-      {
-        id: '3',
-        studentId: 'student8',
-        studentName: 'Frank Miller',
-        studentEmail: 'frank.miller@email.com',
-        courseId: 'course3',
-        courseTitle: 'Data Science Fundamentals',
-        applicationDate: new Date('2024-01-28'),
-        status: 'REJECTED',
-        rejectionReason: 'Insufficient background in mathematics',
-        documents: ['/uploads/transcript.pdf'],
-        notes: 'Student needs to complete prerequisite math courses'
-      }
-    ];
-  }
-
-  getMockEnrollmentStats(): EnrollmentStats {
-    return {
-      totalEnrollments: 156,
-      activeEnrollments: 89,
-      completedEnrollments: 45,
-      pendingApplications: 12,
-      waitlistedStudents: 8,
-      averageCompletionRate: 78.5,
-      monthlyEnrollments: 23,
-      revenueThisMonth: 6899.97,
-      topCourses: [
-        { courseId: 'course1', courseTitle: 'Web Development Fundamentals', enrollments: 45 },
-        { courseId: 'course2', courseTitle: 'Advanced React Development', enrollments: 38 },
-        { courseId: 'course3', courseTitle: 'Data Science Fundamentals', enrollments: 32 }
-      ]
-    };
-  }
-
-  getMockCourseEnrollmentData(): CourseEnrollmentData[] {
-    return [
-      {
-        courseId: 'course1',
-        courseTitle: 'Web Development Fundamentals',
-        totalEnrollments: 45,
-        activeEnrollments: 32,
-        completedEnrollments: 13,
-        averageProgress: 68.5,
-        averageGrade: 'B+',
-        revenue: 13499.55,
-        enrollmentTrend: [
-          { month: 'Jan', enrollments: 15 },
-          { month: 'Feb', enrollments: 18 },
-          { month: 'Mar', enrollments: 12 }
-        ]
-      },
-      {
-        courseId: 'course2',
-        courseTitle: 'Advanced React Development',
-        totalEnrollments: 38,
-        activeEnrollments: 25,
-        completedEnrollments: 13,
-        averageProgress: 72.3,
-        averageGrade: 'A-',
-        revenue: 15199.62,
-        enrollmentTrend: [
-          { month: 'Jan', enrollments: 12 },
-          { month: 'Feb', enrollments: 16 },
-          { month: 'Mar', enrollments: 10 }
-        ]
-      },
-      {
-        courseId: 'course3',
-        courseTitle: 'Data Science Fundamentals',
-        totalEnrollments: 32,
-        activeEnrollments: 20,
-        completedEnrollments: 12,
-        averageProgress: 65.8,
-        averageGrade: 'B',
-        revenue: 15999.68,
-        enrollmentTrend: [
-          { month: 'Jan', enrollments: 10 },
-          { month: 'Feb', enrollments: 14 },
-          { month: 'Mar', enrollments: 8 }
-        ]
-      }
-    ];
-  }
-
-  getMockStudentEnrollmentHistory(): StudentEnrollmentHistory {
-    return {
-      studentId: 'student1',
-      studentName: 'John Doe',
-      enrollments: this.getMockEnrollments().filter(e => e.studentId === 'student1'),
-      totalCourses: 3,
-      completedCourses: 1,
-      averageGrade: 'B+',
-      totalSpent: 899.97,
-      certificatesEarned: 1
-    };
+    return this.http.patch<void>(`${this.apiUrl}/enrollment-applications/bulk-reject`, { applicationIds, reason });
   }
 } 

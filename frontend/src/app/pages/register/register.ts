@@ -1,16 +1,16 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule, Router } from '@angular/router';
-import { Navbar } from '../navbar/navbar';
+import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { Footer } from '../footer/footer';
+import { AuthService, RegisterData } from '../../services/auth.service';
 
 interface RegisterForm {
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
   password: string;
   confirmPassword: string;
+  role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
   agreeToTerms: boolean;
   agreeToMarketing: boolean;
 }
@@ -31,17 +31,17 @@ interface PasswordStrength {
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, Navbar, Footer],
+  imports: [CommonModule, FormsModule, RouterModule, Footer],
   templateUrl: './register.html',
   styleUrl: './register.css'
 })
 export class Register {
   registerForm: RegisterForm = {
-    firstName: '',
-    lastName: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
+    role: 'STUDENT', // Always student
     agreeToTerms: false,
     agreeToMarketing: false
   };
@@ -51,10 +51,10 @@ export class Register {
   showConfirmPassword = false;
   registerError = '';
   registerSuccess = false;
+  verificationMessage = '';
 
   // Form validation
-  firstNameError = '';
-  lastNameError = '';
+  nameError = '';
   emailError = '';
   passwordError = '';
   confirmPasswordError = '';
@@ -74,7 +74,22 @@ export class Register {
     }
   };
 
-  constructor(private router: Router) {}
+  returnUrl: string = '/student-dashboard';
+  courseId: string | null = null;
+
+  constructor(
+    private router: Router,
+    private route: ActivatedRoute,
+    private authService: AuthService
+  ) {}
+
+  ngOnInit(): void {
+    // Get query parameters
+    this.route.queryParams.subscribe(params => {
+      this.returnUrl = params['returnUrl'] || '/student-dashboard';
+      this.courseId = params['courseId'] || null;
+    });
+  }
 
   onSubmit(): void {
     if (this.isSubmitting) return;
@@ -89,45 +104,56 @@ export class Register {
 
     this.isSubmitting = true;
 
-    // Simulate API call
-    setTimeout(() => {
-      this.isSubmitting = false;
-      
-      // Mock registration logic
-      if (this.registerForm.email === 'demo@example.com') {
-        this.registerError = 'An account with this email already exists.';
-        this.registerSuccess = false;
-      } else {
+    const registerData: RegisterData = {
+      name: this.registerForm.name,
+      email: this.registerForm.email,
+      password: this.registerForm.password,
+      confirmPassword: this.registerForm.confirmPassword,
+      role: this.registerForm.role,
+      agreeToTerms: this.registerForm.agreeToTerms,
+      agreeToMarketing: this.registerForm.agreeToMarketing
+    };
+
+    this.authService.register(registerData).subscribe({
+      next: (response) => {
+        this.isSubmitting = false;
         this.registerSuccess = true;
         this.registerError = '';
+        this.verificationMessage = response.message || 'Registration successful! Please check your email for verification.';
         
-        // Simulate redirect after successful registration
+        console.log('Registration successful:', response);
+        
+        // Store email for verification page
+        localStorage.setItem('pendingVerificationEmail', this.registerForm.email);
+        
+        // Redirect to verification page after 2 seconds
         setTimeout(() => {
-          // Redirect to student dashboard after successful registration
-          this.router.navigate(['/student-dashboard']);
+          this.router.navigate(['/verification'], { 
+            queryParams: { 
+              email: this.registerForm.email,
+              message: 'Registration successful! Please verify your email.' 
+            } 
+          });
         }, 2000);
+      },
+      error: (error) => {
+        this.isSubmitting = false;
+        this.registerError = error.message || 'Registration failed. Please try again.';
+        this.registerSuccess = false;
+        console.error('Registration error:', error);
       }
-    }, 2000);
+    });
   }
 
   validateForm(): boolean {
     let isValid = true;
 
-    // First name validation
-    if (!this.registerForm.firstName.trim()) {
-      this.firstNameError = 'First name is required';
+    // Name validation
+    if (!this.registerForm.name.trim()) {
+      this.nameError = 'Name is required';
       isValid = false;
-    } else if (this.registerForm.firstName.trim().length < 2) {
-      this.firstNameError = 'First name must be at least 2 characters';
-      isValid = false;
-    }
-
-    // Last name validation
-    if (!this.registerForm.lastName.trim()) {
-      this.lastNameError = 'Last name is required';
-      isValid = false;
-    } else if (this.registerForm.lastName.trim().length < 2) {
-      this.lastNameError = 'Last name must be at least 2 characters';
+    } else if (this.registerForm.name.trim().length < 2) {
+      this.nameError = 'Name must be at least 2 characters';
       isValid = false;
     }
 
@@ -169,8 +195,7 @@ export class Register {
 
   resetErrors(): void {
     this.registerError = '';
-    this.firstNameError = '';
-    this.lastNameError = '';
+    this.nameError = '';
     this.emailError = '';
     this.passwordError = '';
     this.confirmPasswordError = '';
@@ -197,11 +222,8 @@ export class Register {
 
   onFieldChange(field: string): void {
     switch (field) {
-      case 'firstName':
-        if (this.firstNameError) this.firstNameError = '';
-        break;
-      case 'lastName':
-        if (this.lastNameError) this.lastNameError = '';
+      case 'name':
+        if (this.nameError) this.nameError = '';
         break;
       case 'email':
         if (this.emailError) this.emailError = '';
@@ -214,6 +236,7 @@ export class Register {
 
   checkPasswordStrength(): void {
     const password = this.registerForm.password;
+    let score = 0;
     const requirements = {
       length: password.length >= 8,
       uppercase: /[A-Z]/.test(password),
@@ -222,29 +245,39 @@ export class Register {
       symbols: /[!@#$%^&*(),.?":{}|<>]/.test(password)
     };
 
-    const score = Object.values(requirements).filter(Boolean).length;
-    
+    // Calculate score
+    if (requirements.length) score++;
+    if (requirements.uppercase) score++;
+    if (requirements.lowercase) score++;
+    if (requirements.numbers) score++;
+    if (requirements.symbols) score++;
+
+    // Determine label and color
     let label = '';
     let color = '';
 
-    if (score === 0) {
-      label = 'Very Weak';
-      color = 'text-red-500';
-    } else if (score === 1) {
-      label = 'Weak';
-      color = 'text-orange-500';
-    } else if (score === 2) {
-      label = 'Fair';
-      color = 'text-yellow-500';
-    } else if (score === 3) {
-      label = 'Good';
-      color = 'text-blue-500';
-    } else if (score === 4) {
-      label = 'Strong';
-      color = 'text-green-500';
-    } else {
-      label = 'Very Strong';
-      color = 'text-green-600';
+    switch (score) {
+      case 0:
+      case 1:
+        label = 'Very Weak';
+        color = 'red';
+        break;
+      case 2:
+        label = 'Weak';
+        color = 'orange';
+        break;
+      case 3:
+        label = 'Fair';
+        color = 'yellow';
+        break;
+      case 4:
+        label = 'Good';
+        color = 'lightgreen';
+        break;
+      case 5:
+        label = 'Strong';
+        color = 'green';
+        break;
     }
 
     this.passwordStrength = {
@@ -280,12 +313,14 @@ export class Register {
   }
 
   getPasswordStrengthBarColor(): string {
-    const score = this.passwordStrength.score;
-    if (score <= 1) return 'bg-red-500';
-    if (score === 2) return 'bg-orange-500';
-    if (score === 3) return 'bg-yellow-500';
-    if (score === 4) return 'bg-blue-500';
-    return 'bg-green-500';
+    switch (this.passwordStrength.color) {
+      case 'red': return 'bg-red-500';
+      case 'orange': return 'bg-orange-500';
+      case 'yellow': return 'bg-yellow-500';
+      case 'lightgreen': return 'bg-green-400';
+      case 'green': return 'bg-green-600';
+      default: return 'bg-gray-300';
+    }
   }
 
   getPasswordStrengthBarWidth(): string {
@@ -344,5 +379,9 @@ export class Register {
       default:
         return '';
     }
+  }
+
+  goToLogin(): void {
+    this.router.navigate(['/login']);
   }
 }

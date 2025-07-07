@@ -216,3 +216,11 @@ button:focus {
     display: none;
   }
 }
+
+.active-nav-item {
+  background: linear-gradient(90deg, #2563eb 80%, #1e293b 100%);
+  color: #fff !important;
+  font-weight: bold;
+  border-left: 4px solid #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08);
+}

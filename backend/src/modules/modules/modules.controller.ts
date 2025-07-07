@@ -42,6 +42,7 @@ export class ModulesController {
 }
 
 @Controller('modules')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class StandaloneModulesController {
   constructor(private readonly modulesService: ModulesService) {}
 

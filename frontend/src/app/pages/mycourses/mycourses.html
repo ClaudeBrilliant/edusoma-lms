@@ -181,15 +181,17 @@
         <div *ngFor="let course of getInProgressCourses()" class="bg-blue-900 rounded-lg border border-blue-800 overflow-hidden hover:shadow-lg transition-all duration-300">
           <!-- Course Image -->
           <div class="relative h-48 bg-gradient-to-br from-blue-600 to-blue-800">
-            <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
+            <div class="w-full h-full flex items-center justify-center">
+              <i class="fas fa-graduation-cap text-6xl text-white opacity-50"></i>
+            </div>
             <div class="absolute top-4 left-4">
               <span class="bg-yellow-500 text-yellow-900 px-2 py-1 rounded-full text-xs font-medium">
                 <i class="fas fa-play mr-1"></i>In Progress
               </span>
             </div>
             <div class="absolute top-4 right-4">
-              <span [class]="getLevelColor(course.level) + ' px-2 py-1 rounded-full text-xs font-medium'">
-                {{ course.level }}
+              <span [class]="getDifficultyColor(course.difficulty.name) + ' px-2 py-1 rounded-full text-xs font-medium'">
+                {{ course.difficulty.name }}
               </span>
             </div>
             <div class="absolute bottom-4 left-4">
@@ -202,7 +204,7 @@
           <!-- Course Content -->
           <div class="p-6">
             <h3 class="text-lg font-semibold text-white mb-2 line-clamp-2">{{ course.title }}</h3>
-            <p class="text-blue-300 text-sm mb-4 line-clamp-2">{{ course.shortDescription }}</p>
+            <p class="text-blue-300 text-sm mb-4 line-clamp-2">{{ course.description }}</p>
             
             <div class="mb-4">
               <div class="flex justify-between text-sm mb-1">
@@ -220,19 +222,12 @@
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-blue-300 text-sm">
                 <i class="fas fa-user mr-1"></i>
-                <span>{{ course.instructorName }}</span>
+                <span>{{ course.instructor.name }}</span>
               </div>
               <div class="flex items-center text-blue-300 text-sm">
-                <i class="fas fa-clock mr-1"></i>
-                <span>{{ getTimeRemaining(course) }}</span>
+                <i class="fas fa-calendar mr-1"></i>
+                <span>{{ formatDate(course.createdAt) }}</span>
               </div>
-            </div>
-
-            <div class="mb-4">
-              <p class="text-blue-300 text-sm">
-                <i class="fas fa-play-circle mr-1"></i>
-                Next: {{ getNextClass(course) }}
-              </p>
             </div>
 
             <!-- Action Buttons -->
@@ -255,7 +250,9 @@
         <div *ngFor="let course of getFilteredCourses()" class="bg-blue-900 rounded-lg border border-blue-800 overflow-hidden hover:shadow-lg transition-all duration-300">
           <!-- Course Image -->
           <div class="relative h-48 bg-gradient-to-br from-blue-600 to-blue-800">
-            <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
+            <div class="w-full h-full flex items-center justify-center">
+              <i class="fas fa-graduation-cap text-6xl text-white opacity-50"></i>
+            </div>
             <div class="absolute top-4 left-4">
               <span [class]="getStatusColor(getEnrollmentByCourseId(course.id)?.status || '') + ' px-2 py-1 rounded-full text-xs font-medium'">
                 <i [class]="getStatusIcon(getEnrollmentByCourseId(course.id)?.status || '')" class="mr-1"></i>
@@ -263,8 +260,8 @@
               </span>
             </div>
             <div class="absolute top-4 right-4">
-              <span [class]="getLevelColor(course.level) + ' px-2 py-1 rounded-full text-xs font-medium'">
-                {{ course.level }}
+              <span [class]="getDifficultyColor(course.difficulty.name) + ' px-2 py-1 rounded-full text-xs font-medium'">
+                {{ course.difficulty.name }}
               </span>
             </div>
             <div class="absolute bottom-4 left-4">
@@ -282,15 +279,8 @@
           <!-- Course Content -->
           <div class="p-6">
             <h3 class="text-lg font-semibold text-white mb-2 line-clamp-2">{{ course.title }}</h3>
-            <p class="text-blue-300 text-sm mb-4 line-clamp-3">{{ course.shortDescription }}</p>
+            <p class="text-blue-300 text-sm mb-4 line-clamp-3">{{ course.description }}</p>
             
-            <div class="flex items-center mb-3">
-              <div class="flex items-center">
-                <i *ngFor="let star of getStarRating(course.rating)" [class]="star" class="text-sm"></i>
-                <span class="text-blue-300 text-sm ml-1">({{ course.totalReviews }})</span>
-              </div>
-            </div>
-
             <div class="mb-4">
               <div class="flex justify-between text-sm mb-1">
                 <span class="text-blue-300">Progress</span>
@@ -307,22 +297,22 @@
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-blue-300 text-sm">
                 <i class="fas fa-user mr-1"></i>
-                <span>{{ course.instructorName }}</span>
+                <span>{{ course.instructor.name }}</span>
               </div>
               <div class="flex items-center text-blue-300 text-sm">
-                <i class="fas fa-clock mr-1"></i>
-                <span>{{ formatDurationHours(course.duration) }}</span>
+                <i class="fas fa-calendar mr-1"></i>
+                <span>{{ formatDate(course.createdAt) }}</span>
               </div>
             </div>
 
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-blue-300 text-sm">
-                <i class="fas fa-calendar mr-1"></i>
-                <span>Enrolled {{ getDaysSinceEnrollment(course) }} days ago</span>
+                <i class="fas fa-book mr-1"></i>
+                <span>{{ course._count?.modules || 0 }} modules</span>
               </div>
               <div class="flex items-center text-blue-300 text-sm">
-                <i class="fas fa-fire mr-1"></i>
-                <span>{{ getStudyStreak(course) }} day streak</span>
+                <i class="fas fa-users mr-1"></i>
+                <span>{{ course._count?.enrollments || 0 }} enrolled</span>
               </div>
             </div>
 

@@ -40,8 +40,7 @@ export interface CourseManagement {
 
 export interface UserManagement {
   id: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
   role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING_VERIFICATION';
@@ -282,7 +281,7 @@ export class AdminDashboardService {
       }
       if (filters.search) {
         users = users.filter(user => 
-          `${user.firstName} ${user.lastName}`.toLowerCase().includes(filters.search.toLowerCase()) ||
+          user.name.toLowerCase().includes(filters.search.toLowerCase()) ||
           user.email.toLowerCase().includes(filters.search.toLowerCase())
         );
       }
@@ -462,8 +461,7 @@ export class AdminDashboardService {
     return [
       {
         id: 'user-1',
-        firstName: 'John',
-        lastName: 'Doe',
+        name: 'John Doe',
         email: 'john.doe@example.com',
         role: 'STUDENT',
         status: 'ACTIVE',
@@ -476,8 +474,7 @@ export class AdminDashboardService {
       },
       {
         id: 'instructor-1',
-        firstName: 'Sarah',
-        lastName: 'Johnson',
+        name: 'Sarah Johnson',
         email: 'sarah.johnson@example.com',
         role: 'INSTRUCTOR',
         status: 'ACTIVE',

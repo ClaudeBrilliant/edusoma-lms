@@ -1,7 +1,4 @@
 <div class="min-h-screen bg-primary text-white">
-  <!-- Navbar -->
-  <app-navbar></app-navbar>
-
   <!-- Dashboard Content -->
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Loading State -->
@@ -192,31 +189,38 @@
               <div class="space-y-4">
                 <div *ngFor="let course of recommendedCourses" class="bg-blue-800 rounded-lg border border-blue-700 overflow-hidden">
                   <div class="relative h-32 bg-gradient-to-br from-blue-600 to-blue-800">
-                    <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
+                    <div class="w-full h-full flex items-center justify-center">
+                      <i class="fas fa-graduation-cap text-4xl text-white opacity-50"></i>
+                    </div>
                     <div class="absolute top-2 right-2">
-                      <span [class]="getLevelColor(course.level) + ' px-2 py-1 rounded-full text-xs font-medium'">
-                        {{ course.level }}
+                      <span [class]="getDifficultyColor(course.difficulty.name) + ' px-2 py-1 rounded-full text-xs font-medium'">
+                        {{ course.difficulty.name }}
                       </span>
                     </div>
                   </div>
                   <div class="p-4">
                     <h3 class="text-white font-medium mb-2 line-clamp-2">{{ course.title }}</h3>
-                    <p class="text-blue-300 text-sm mb-3 line-clamp-2">{{ course.shortDescription }}</p>
+                    <p class="text-blue-300 text-sm mb-3 line-clamp-2">{{ course.description }}</p>
                     
-                    <div class="flex items-center mb-3">
-                      <div class="flex items-center">
-                        <i *ngFor="let star of getStarRating(course.rating)" [class]="star" class="text-xs"></i>
-                        <span class="text-blue-300 text-xs ml-1">({{ course.totalReviews }})</span>
+                    <div class="flex items-center justify-between mb-3">
+                      <div class="flex items-center text-blue-300 text-xs">
+                        <i class="fas fa-user mr-1"></i>
+                        <span>{{ course.instructor.name }}</span>
+                      </div>
+                      <div class="flex items-center text-blue-300 text-xs">
+                        <i class="fas fa-calendar mr-1"></i>
+                        <span>{{ formatDate(course.createdAt) }}</span>
                       </div>
                     </div>
 
                     <div class="flex items-center justify-between mb-3">
                       <div class="flex items-center text-blue-300 text-xs">
-                        <i class="fas fa-clock mr-1"></i>
-                        <span>{{ formatDurationHours(course.duration) }}</span>
+                        <i class="fas fa-book mr-1"></i>
+                        <span>{{ course._count?.modules || 0 }} modules</span>
                       </div>
-                      <div class="text-white font-semibold text-sm">
-                        {{ formatCurrency(course.price, course.currency) }}
+                      <div class="flex items-center text-blue-300 text-xs">
+                        <i class="fas fa-users mr-1"></i>
+                        <span>{{ course._count?.enrollments || 0 }} enrolled</span>
                       </div>
                     </div>
 

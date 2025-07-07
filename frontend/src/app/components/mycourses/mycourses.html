@@ -181,7 +181,9 @@
         <div *ngFor="let course of getInProgressCourses()" class="bg-secondary rounded-lg border border-accent overflow-hidden hover:shadow-lg transition-all duration-300">
           <!-- Course Image -->
           <div class="relative h-48 bg-gradient-to-br from-accent to-secondary">
-            <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
+            <div class="w-full h-full flex items-center justify-center">
+              <i class="fas fa-graduation-cap text-6xl text-white opacity-50"></i>
+            </div>
             <div class="absolute top-4 left-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
                 <i class="fas fa-play mr-1"></i>In Progress
@@ -189,7 +191,7 @@
             </div>
             <div class="absolute top-4 right-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                {{ course.level }}
+                {{ course.difficulty.name }}
               </span>
             </div>
             <div class="absolute bottom-4 left-4">
@@ -202,7 +204,7 @@
           <!-- Course Content -->
           <div class="p-6">
             <h3 class="text-lg font-semibold text-white mb-2">{{ course.title }}</h3>
-            <p class="text-accent text-sm mb-4">{{ course.shortDescription }}</p>
+            <p class="text-accent text-sm mb-4">{{ course.description }}</p>
             
             <!-- Progress Bar -->
             <div class="mb-4">
@@ -218,19 +220,13 @@
             <!-- Course Stats -->
             <div class="flex items-center justify-between mb-4 text-sm">
               <div class="flex items-center text-accent">
-                <i class="fas fa-clock mr-1"></i>
-                <span>{{ formatDurationHours(course.duration) }}</span>
+                <i class="fas fa-calendar mr-1"></i>
+                <span>{{ formatDate(course.createdAt) }}</span>
               </div>
               <div class="flex items-center text-accent">
-                <i class="fas fa-play-circle mr-1"></i>
-                <span>{{ course.totalClasses }} classes</span>
+                <i class="fas fa-book mr-1"></i>
+                <span>{{ course._count?.modules || 0 }} modules</span>
               </div>
-            </div>
-
-            <!-- Next Class -->
-            <div class="mb-4 p-3 bg-primary rounded-lg">
-              <p class="text-accent text-sm font-medium mb-1">Next Class</p>
-              <p class="text-white text-sm">{{ getNextClass(course) }}</p>
             </div>
 
             <!-- Action Buttons -->
@@ -253,7 +249,9 @@
         <div *ngFor="let course of getFilteredCourses()" class="bg-secondary rounded-lg border border-accent overflow-hidden hover:shadow-lg transition-all duration-300">
           <!-- Course Image -->
           <div class="relative h-48 bg-gradient-to-br from-accent to-secondary">
-            <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
+            <div class="w-full h-full flex items-center justify-center">
+              <i class="fas fa-graduation-cap text-6xl text-white opacity-50"></i>
+            </div>
             <div class="absolute top-4 left-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
                 <i [class]="getStatusIcon(getEnrollmentByCourseId(course.id)?.status || 'APPROVED')" class="mr-1"></i>
@@ -262,7 +260,7 @@
             </div>
             <div class="absolute top-4 right-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                {{ course.level }}
+                {{ course.difficulty.name }}
               </span>
             </div>
             <div *ngIf="getEnrollmentByCourseId(course.id)?.progress === 100" class="absolute bottom-4 left-4">
@@ -285,7 +283,7 @@
               </button>
             </div>
             
-            <p class="text-accent text-sm mb-4 line-clamp-2">{{ course.shortDescription }}</p>
+            <p class="text-accent text-sm mb-4 line-clamp-2">{{ course.description }}</p>
             
             <!-- Progress Bar -->
             <div class="mb-4">
@@ -301,24 +299,12 @@
             <!-- Course Stats -->
             <div class="flex items-center justify-between mb-4 text-sm">
               <div class="flex items-center text-accent">
-                <i class="fas fa-clock mr-1"></i>
-                <span>{{ formatDurationHours(course.duration) }}</span>
+                <i class="fas fa-calendar mr-1"></i>
+                <span>{{ formatDate(course.createdAt) }}</span>
               </div>
               <div class="flex items-center text-accent">
-                <i class="fas fa-play-circle mr-1"></i>
-                <span>{{ course.totalClasses }} classes</span>
-              </div>
-            </div>
-
-            <!-- Study Info -->
-            <div class="mb-4 p-3 bg-primary rounded-lg">
-              <div class="flex justify-between text-sm">
-                <span class="text-accent">Study Streak</span>
-                <span class="text-white">{{ getStudyStreak(course) }} days</span>
-              </div>
-              <div class="flex justify-between text-sm mt-1">
-                <span class="text-accent">Time Remaining</span>
-                <span class="text-white">{{ getTimeRemaining(course) }}</span>
+                <i class="fas fa-book mr-1"></i>
+                <span>{{ course._count?.modules || 0 }} modules</span>
               </div>
             </div>
 

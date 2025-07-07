@@ -7,6 +7,7 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { Course, User } from '@prisma/client';
+import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import {
   CourseWithInstructor,
   CourseWithCounts,
@@ -21,12 +22,14 @@ export class CoursesService {
 
   async create(
     createCourseDto: CreateCourseDto,
-    instructor: User,
+    instructor: User | JwtPayload,
   ): Promise<CourseWithInstructor> {
+    const instructorId = 'id' in instructor ? instructor.id : instructor.sub;
+    
     return this.prisma.course.create({
       data: {
         ...createCourseDto,
-        instructorId: instructor.id,
+        instructorId,
       },
       include: {
         instructor: {
@@ -113,7 +116,7 @@ export class CoursesService {
   async update(
     id: string,
     updateCourseDto: UpdateCourseDto,
-    user: User,
+    user: User | JwtPayload,
   ): Promise<CourseWithInstructor> {
     const course = await this.prisma.course.findUnique({
       where: { id },
@@ -124,8 +127,11 @@ export class CoursesService {
       throw new NotFoundException('Course not found');
     }
 
+    const userId = 'id' in user ? user.id : user.sub;
+    const userRole = 'role' in user ? user.role : (user as JwtPayload).role;
+
     // Only instructor or admin can update the course
-    if (course.instructorId !== user.id && user.role !== 'ADMIN') {
+    if (course.instructorId !== userId && userRole !== 'ADMIN') {
       throw new ForbiddenException('You can only update your own courses');
     }
 
@@ -146,7 +152,7 @@ export class CoursesService {
     });
   }
 
-  async remove(id: string, user: User): Promise<void> {
+  async remove(id: string, user: User | JwtPayload): Promise<void> {
     const course = await this.prisma.course.findUnique({
       where: { id },
       include: { instructor: true },
@@ -156,8 +162,11 @@ export class CoursesService {
       throw new NotFoundException('Course not found');
     }
 
+    const userId = 'id' in user ? user.id : user.sub;
+    const userRole = 'role' in user ? user.role : (user as JwtPayload).role;
+
     // Only instructor or admin can delete the course
-    if (course.instructorId !== user.id && user.role !== 'ADMIN') {
+    if (course.instructorId !== userId && userRole !== 'ADMIN') {
       throw new ForbiddenException('You can only delete your own courses');
     }
 
@@ -320,22 +329,95 @@ export class CoursesService {
   }
 
   async getPublicCourses(category?: string, difficulty?: string) {
+    const where: any = {};
+
+    if (category) {
+      where.categoryId = category;
+    }
+
+    if (difficulty) {
+      where.difficultyId = difficulty;
+    }
+
     return this.prisma.course.findMany({
-      where: {
-        ...(category ? { categoryId: category } : {}),
-        ...(difficulty ? { difficultyId: difficulty } : {}),
-      },
+      where,
       include: {
         instructor: {
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
         },
         category: true,
         difficulty: true,
         _count: {
-          select: { enrollments: true, modules: true },
+          select: {
+            enrollments: true,
+            modules: true,
+            reviews: true,
+          },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
+  }
+
+  async getInstructorStats(instructorId: string) {
+    // Get instructor's courses
+    const courses = await this.prisma.course.findMany({
+      where: { instructorId },
+      include: {
+        enrollments: true,
+        modules: true,
+        reviews: true,
+      },
+    });
+
+    // Calculate total courses
+    const totalCourses = courses.length;
+
+    // Calculate total students (unique enrollments)
+    const totalStudents = await this.prisma.enrollment.count({
+      where: {
+        course: {
+          instructorId,
+        },
+      },
+    });
+
+    // Calculate total classes (modules)
+    const totalClasses = courses.reduce((sum, course) => sum + course.modules.length, 0);
+
+    // Calculate average rating
+    const allReviews = courses.flatMap(course => course.reviews);
+    const averageRating = allReviews.length > 0 
+      ? allReviews.reduce((sum, review) => sum + review.rating, 0) / allReviews.length 
+      : 0;
+
+    // Calculate recent enrollments (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentEnrollments = await this.prisma.enrollment.count({
+      where: {
+        course: {
+          instructorId,
+        },
+        enrolledAt: {
+          gte: sevenDaysAgo,
+        },
+      },
+    });
+
+    return {
+      totalCourses,
+      totalStudents,
+      totalClasses,
+      averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
+      recentEnrollments,
+    };
   }
 }

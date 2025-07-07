@@ -1,66 +1,4 @@
 <div class="min-h-screen bg-primary text-white">
-  <!-- Header -->
-  <header class="bg-primary border-b border-accent">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center py-6">
-        <div class="flex items-center">
-          <h1 class="text-2xl font-bold text-white">Course Management</h1>
-        </div>
-        <div class="flex items-center space-x-4">
-          <button (click)="createCourse()" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors">
-            <i class="fas fa-plus mr-2"></i>Create Course
-          </button>
-          <button (click)="exportCourseData()" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors">
-            <i class="fas fa-download mr-2"></i>Export Data
-          </button>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <!-- Navigation Tabs -->
-  <nav class="bg-secondary border-b border-accent">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex space-x-8">
-        <button 
-          (click)="switchTab('all-courses')"
-          [class]="selectedTab === 'all-courses' ? 'border-b-2 border-accent text-accent' : 'text-accent hover:text-white'"
-          class="py-4 px-1 font-medium transition-colors"
-        >
-          <i class="fas fa-th-large mr-2"></i>All Courses
-        </button>
-        <button 
-          (click)="switchTab('my-courses')"
-          [class]="selectedTab === 'my-courses' ? 'border-b-2 border-accent text-accent' : 'text-accent hover:text-white'"
-          class="py-4 px-1 font-medium transition-colors"
-        >
-          <i class="fas fa-book mr-2"></i>My Courses
-        </button>
-        <button 
-          (click)="switchTab('pending-approval')"
-          [class]="selectedTab === 'pending-approval' ? 'border-b-2 border-accent text-accent' : 'text-accent hover:text-white'"
-          class="py-4 px-1 font-medium transition-colors"
-        >
-          <i class="fas fa-clock mr-2"></i>Pending Approval
-        </button>
-        <button 
-          (click)="switchTab('enrollments')"
-          [class]="selectedTab === 'enrollments' ? 'border-b-2 border-accent text-accent' : 'text-accent hover:text-white'"
-          class="py-4 px-1 font-medium transition-colors"
-        >
-          <i class="fas fa-users mr-2"></i>Enrollments
-        </button>
-        <button 
-          (click)="switchTab('create-course')"
-          [class]="selectedTab === 'create-course' ? 'border-b-2 border-accent text-accent' : 'text-accent hover:text-white'"
-          class="py-4 px-1 font-medium transition-colors"
-        >
-          <i class="fas fa-plus-circle mr-2"></i>Create Course
-        </button>
-      </div>
-    </div>
-  </nav>
-
   <!-- Main Content -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <!-- Loading State -->
@@ -68,10 +6,10 @@
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
     </div>
 
-    <!-- All Courses Tab -->
-    <div *ngIf="!loading && selectedTab === 'all-courses'">
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- All Courses Content -->
+    <div *ngIf="!loading">
+      <!-- Stats Cards - Only for Instructors/Admins -->
+      <div *ngIf="isInstructorOrAdmin()" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-secondary rounded-lg p-6 border border-accent">
           <div class="flex items-center">
             <div class="p-3 rounded-full bg-accent">
@@ -152,18 +90,7 @@
               <option value="ADVANCED">Advanced</option>
             </select>
           </div>
-          <div class="md:w-48">
-            <select 
-              [(ngModel)]="selectedStatus"
-              class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent"
-            >
-              <option value="all">All Status</option>
-              <option value="PUBLISHED">Published</option>
-              <option value="DRAFT">Draft</option>
-              <option value="PENDING_APPROVAL">Pending Approval</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
-          </div>
+
         </div>
       </div>
 
@@ -172,21 +99,17 @@
         <div *ngFor="let course of getFilteredCourses()" class="bg-secondary rounded-lg border border-accent overflow-hidden hover:shadow-lg transition-all duration-300">
           <!-- Course Image -->
           <div class="relative h-48 bg-gradient-to-br from-accent to-secondary">
-            <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
+            <div class="w-full h-full flex items-center justify-center">
+              <i class="fas fa-graduation-cap text-6xl text-white opacity-50"></i>
+            </div>
             <div class="absolute top-4 left-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                <i [class]="getStatusIcon(course.status)" class="mr-1"></i>
-                {{ course.status }}
+                {{ course.category.name }}
               </span>
             </div>
             <div class="absolute top-4 right-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                {{ course.level }}
-              </span>
-            </div>
-            <div *ngIf="hasDiscount(course)" class="absolute bottom-4 left-4">
-              <span class="bg-accent text-white px-2 py-1 rounded text-xs font-medium">
-                {{ course.discountPercentage }}% OFF
+                {{ course.difficulty.name }}
               </span>
             </div>
           </div>
@@ -197,534 +120,49 @@
               <h3 class="text-lg font-semibold text-white line-clamp-2">{{ course.title }}</h3>
             </div>
             
-            <p class="text-accent text-sm mb-4 line-clamp-3">{{ course.shortDescription }}</p>
+            <p class="text-accent text-sm mb-4 line-clamp-3">{{ course.description }}</p>
             
-            <div class="flex items-center mb-3">
-              <div class="flex items-center">
-                <i *ngFor="let star of getStarRating(course.rating)" [class]="star" class="text-sm"></i>
-                <span class="text-accent text-sm ml-1">({{ course.totalReviews }})</span>
-              </div>
-            </div>
-
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-accent text-sm">
                 <i class="fas fa-user mr-1"></i>
-                <span>{{ course.instructorName }}</span>
+                <span>{{ course.instructor.name }}</span>
               </div>
               <div class="flex items-center text-accent text-sm">
-                <i class="fas fa-clock mr-1"></i>
-                <span>{{ formatDurationHours(course.duration) }}</span>
+                <i class="fas fa-calendar mr-1"></i>
+                <span>{{ formatDate(course.createdAt) }}</span>
               </div>
             </div>
 
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-accent text-sm">
                 <i class="fas fa-users mr-1"></i>
-                <span>{{ course.currentEnrollments }} enrolled</span>
+                <span>{{ course._count?.enrollments || 0 }} enrolled</span>
               </div>
               <div class="flex items-center text-accent text-sm">
-                <i class="fas fa-play-circle mr-1"></i>
-                <span>{{ course.totalClasses }} classes</span>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between mb-4">
-              <div class="text-lg font-bold text-white">
-                <span *ngIf="hasDiscount(course)" class="line-through text-accent text-sm mr-2">
-                  {{ formatCurrency(course.originalPrice || 0, course.currency) }}
-                </span>
-                {{ formatCurrency(course.price, course.currency) }}
-              </div>
-              <div class="text-accent text-sm font-medium">
-                {{ getEnrollmentStatus(course) }}
+                <i class="fas fa-book mr-1"></i>
+                <span>{{ course._count?.modules || 0 }} modules</span>
               </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="flex space-x-2">
               <button (click)="viewCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-eye mr-1"></i>View
+                <i class="fas fa-eye mr-1"></i>View Details
               </button>
               <button (click)="enrollInCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-graduation-cap mr-1"></i>Enroll
-              </button>
-              <button (click)="editCourse(course)" class="bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-edit"></i>
+                <i class="fas fa-graduation-cap mr-1"></i>Enroll Now
               </button>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- My Courses Tab -->
-    <div *ngIf="!loading && selectedTab === 'my-courses'">
-      <div class="bg-secondary rounded-lg p-6 border border-accent mb-6">
-        <h2 class="text-xl font-semibold text-white mb-4">My Created Courses</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div *ngFor="let course of getDraftCourses()" class="bg-primary rounded-lg p-4 border border-accent">
-            <h3 class="text-lg font-semibold text-white mb-2">{{ course.title }}</h3>
-            <p class="text-accent text-sm mb-3">{{ course.shortDescription }}</p>
-            <div class="flex items-center justify-between mb-3">
-              <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                {{ course.status }}
-              </span>
-              <span class="text-accent text-sm">{{ course.currentEnrollments }} students</span>
-            </div>
-            <div class="flex space-x-2">
-              <button (click)="editCourse(course)" class="bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-edit mr-1"></i>Edit
-              </button>
-              <button (click)="viewCourse(course)" class="bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-eye mr-1"></i>View
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pending Approval Tab -->
-    <div *ngIf="!loading && selectedTab === 'pending-approval'">
-      <div class="bg-secondary rounded-lg p-6 border border-accent mb-6">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-xl font-semibold text-white">Courses Pending Approval</h2>
-          <div class="flex space-x-2">
-            <button (click)="bulkApproveCourses()" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors">
-              <i class="fas fa-check mr-2"></i>Bulk Approve
-            </button>
-            <button (click)="bulkRejectCourses()" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors">
-              <i class="fas fa-ban mr-2"></i>Bulk Reject
-            </button>
-          </div>
-        </div>
-        
-        <div *ngIf="getPendingApprovalCourses().length > 0" class="mb-4">
-          <input 
-            type="text" 
-            [(ngModel)]="rejectionReason"
-            placeholder="Rejection reason (for bulk reject)..."
-            class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent"
-          >
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div *ngFor="let course of getPendingApprovalCourses()" class="bg-primary rounded-lg p-4 border border-accent">
-            <h3 class="text-lg font-semibold text-white mb-2">{{ course.title }}</h3>
-            <p class="text-accent text-sm mb-3">{{ course.shortDescription }}</p>
-            <div class="flex items-center justify-between mb-3">
-              <span class="text-accent text-sm">{{ course.instructorName }}</span>
-              <span class="text-accent text-sm">{{ formatCurrency(course.price, course.currency) }}</span>
-            </div>
-            <div class="flex space-x-2">
-              <button (click)="approveCourse(course)" class="bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-check mr-1"></i>Approve
-              </button>
-              <button (click)="rejectCourse(course)" class="bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-ban mr-1"></i>Reject
-              </button>
-              <button (click)="viewCourse(course)" class="bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-eye"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Enrollments Tab -->
-    <div *ngIf="!loading && selectedTab === 'enrollments'">
-      <div class="bg-secondary rounded-lg p-6 border border-accent mb-6">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-xl font-semibold text-white">Course Enrollments</h2>
-          <div class="flex space-x-2">
-            <button (click)="bulkApproveEnrollments()" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors">
-              <i class="fas fa-check mr-2"></i>Bulk Approve
-            </button>
-            <button (click)="bulkRejectEnrollments()" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors">
-              <i class="fas fa-ban mr-2"></i>Bulk Reject
-            </button>
-          </div>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-left">
-            <thead>
-              <tr class="border-b border-accent">
-                <th class="py-3 px-4 text-accent font-medium">Student</th>
-                <th class="py-3 px-4 text-accent font-medium">Course</th>
-                <th class="py-3 px-4 text-accent font-medium">Enrollment Date</th>
-                <th class="py-3 px-4 text-accent font-medium">Status</th>
-                <th class="py-3 px-4 text-accent font-medium">Payment</th>
-                <th class="py-3 px-4 text-accent font-medium">Progress</th>
-                <th class="py-3 px-4 text-accent font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let enrollment of enrollments" class="border-b border-accent hover:bg-primary">
-                <td class="py-4 px-4">
-                  <div>
-                    <p class="text-white font-medium">{{ enrollment.studentName }}</p>
-                    <p class="text-accent text-sm">{{ enrollment.studentEmail }}</p>
-                  </div>
-                </td>
-                <td class="py-4 px-4 text-white">{{ getCourseById(enrollment.courseId)?.title }}</td>
-                <td class="py-4 px-4 text-white">{{ formatDate(enrollment.enrollmentDate) }}</td>
-                <td class="py-4 px-4">
-                  <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                    {{ enrollment.status }}
-                  </span>
-                </td>
-                <td class="py-4 px-4">
-                  <div>
-                    <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                      {{ enrollment.paymentStatus }}
-                    </span>
-                    <p class="text-white text-sm mt-1">{{ formatCurrency(enrollment.amount, enrollment.currency) }}</p>
-                  </div>
-                </td>
-                <td class="py-4 px-4">
-                  <div class="w-32">
-                    <div class="flex justify-between text-sm mb-1">
-                      <span class="text-accent">{{ enrollment.progress }}%</span>
-                    </div>
-                    <div class="w-full bg-primary rounded-full h-2">
-                      <div class="bg-accent h-2 rounded-full" [style.width.%]="enrollment.progress"></div>
-                    </div>
-                  </div>
-                </td>
-                <td class="py-4 px-4">
-                  <div class="flex space-x-2">
-                    <button (click)="viewEnrollment(enrollment)" class="bg-accent hover:bg-secondary text-white px-3 py-1 rounded text-sm transition-colors">
-                      <i class="fas fa-eye mr-1"></i>View
-                    </button>
-                    <button (click)="approveEnrollment(enrollment)" class="bg-accent hover:bg-secondary text-white px-3 py-1 rounded text-sm transition-colors">
-                      <i class="fas fa-check mr-1"></i>Approve
-                    </button>
-                    <button (click)="rejectEnrollment(enrollment)" class="bg-accent hover:bg-secondary text-white px-3 py-1 rounded text-sm transition-colors">
-                      <i class="fas fa-ban mr-1"></i>Reject
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- Create Course Tab -->
-    <div *ngIf="!loading && selectedTab === 'create-course'">
-      <div class="bg-secondary rounded-lg p-6 border border-accent">
-        <h2 class="text-xl font-semibold text-white mb-6">Create New Course</h2>
-        
-        <form (ngSubmit)="onSubmitCourseForm()" class="space-y-6">
-          <!-- Basic Information -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label class="block text-accent text-sm font-medium mb-2">Course Title</label>
-              <input 
-                type="text" 
-                [(ngModel)]="courseForm.title"
-                name="title"
-                class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent"
-                placeholder="Enter course title"
-                required
-              >
-            </div>
-            <div>
-              <label class="block text-accent text-sm font-medium mb-2">Category</label>
-              <select 
-                [(ngModel)]="courseForm.category"
-                name="category"
-                class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent"
-                required
-              >
-                <option value="">Select Category</option>
-                <option *ngFor="let category of categories" [value]="category.name">{{ category.name }}</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-accent text-sm font-medium mb-2">Short Description</label>
-            <textarea 
-              [(ngModel)]="courseForm.shortDescription"
-              name="shortDescription"
-              rows="3"
-              class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent resize-none"
-              placeholder="Brief description of the course"
-              required
-            ></textarea>
-          </div>
-
-          <div>
-            <label class="block text-accent text-sm font-medium mb-2">Full Description</label>
-            <textarea 
-              [(ngModel)]="courseForm.description"
-              name="description"
-              rows="6"
-              class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent resize-none"
-              placeholder="Detailed description of the course content"
-              required
-            ></textarea>
-          </div>
-
-          <!-- Course Details -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <label class="block text-accent text-sm font-medium mb-2">Level</label>
-              <select 
-                [(ngModel)]="courseForm.level"
-                name="level"
-                class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent"
-                required
-              >
-                <option value="">Select Level</option>
-                <option value="BEGINNER">Beginner</option>
-                <option value="INTERMEDIATE">Intermediate</option>
-                <option value="ADVANCED">Advanced</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-accent text-sm font-medium mb-2">Duration (hours)</label>
-              <input 
-                type="number" 
-                [(ngModel)]="courseForm.duration"
-                name="duration"
-                class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent"
-                placeholder="Course duration in hours"
-                required
-              >
-            </div>
-            <div>
-              <label class="block text-accent text-sm font-medium mb-2">Price</label>
-              <input 
-                type="number" 
-                [(ngModel)]="courseForm.price"
-                name="price"
-                class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent"
-                placeholder="Course price"
-                required
-              >
-            </div>
-          </div>
-
-          <!-- Course Image -->
-          <div>
-            <label class="block text-accent text-sm font-medium mb-2">Thumbnail URL</label>
-            <input 
-              type="url" 
-              [(ngModel)]="courseForm.thumbnail"
-              name="thumbnail"
-              class="w-full bg-primary text-white px-4 py-2 rounded-lg border border-accent focus:outline-none focus:border-accent"
-              placeholder="https://example.com/image.jpg"
-            >
-          </div>
-
-          <!-- Submit Button -->
-          <div class="flex justify-end space-x-4">
-            <button 
-              type="button"
-              (click)="switchTab('all-courses')"
-              class="bg-primary hover:bg-secondary text-white px-6 py-2 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit"
-              [disabled]="submitting"
-              [class]="submitting ? 'bg-accent opacity-50 cursor-not-allowed' : 'bg-accent hover:bg-secondary'"
-              class="text-white px-6 py-2 rounded-lg transition-colors"
-            >
-              <i *ngIf="submitting" class="fas fa-spinner fa-spin mr-2"></i>
-              {{ submitting ? 'Creating...' : 'Create Course' }}
-            </button>
-          </div>
-        </form>
       </div>
     </div>
 
     <!-- Course Detail Modal -->
-    <div *ngIf="isViewingCourse && selectedCourse" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-primary rounded-lg p-8 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-2xl font-bold text-white">Course Details</h2>
-          <button (click)="resetForms()" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors">
-            <i class="fas fa-times mr-2"></i>Close
-          </button>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="space-y-4">
-            <div>
-              <h3 class="text-lg font-semibold text-white mb-2">Course Information</h3>
-              <div class="bg-accent rounded-lg p-4">
-                <p class="text-white"><strong>Title:</strong> {{ selectedCourse.title }}</p>
-                <p class="text-white"><strong>Category:</strong> {{ selectedCourse.category }}</p>
-                <p class="text-white"><strong>Level:</strong> {{ selectedCourse.level }}</p>
-                <p class="text-white"><strong>Duration:</strong> {{ formatDurationHours(selectedCourse.duration) }}</p>
-                <p class="text-white"><strong>Price:</strong> {{ formatCurrency(selectedCourse.price, selectedCourse.currency) }}</p>
-                <p class="text-white"><strong>Language:</strong> {{ selectedCourse.language }}</p>
-              </div>
-            </div>
-            
-            <div>
-              <h3 class="text-lg font-semibold text-white mb-2">Instructor Information</h3>
-              <div class="bg-accent rounded-lg p-4">
-                <p class="text-white"><strong>Name:</strong> {{ selectedCourse.instructorName }}</p>
-                <p class="text-white"><strong>Email:</strong> {{ selectedCourse.instructorEmail }}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div class="space-y-4">
-            <div>
-              <h3 class="text-lg font-semibold text-white mb-2">Course Statistics</h3>
-              <div class="bg-accent rounded-lg p-4">
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p class="text-accent">Enrollments</p>
-                    <p class="text-white font-bold">{{ selectedCourse.currentEnrollments }}</p>
-                  </div>
-                  <div>
-                    <p class="text-accent">Rating</p>
-                    <p class="text-white font-bold">{{ selectedCourse.rating }}/5</p>
-                  </div>
-                  <div>
-                    <p class="text-accent">Reviews</p>
-                    <p class="text-white font-bold">{{ selectedCourse.totalReviews }}</p>
-                  </div>
-                  <div>
-                    <p class="text-accent">Modules</p>
-                    <p class="text-white font-bold">{{ selectedCourse.totalModules }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              <h3 class="text-lg font-semibold text-white mb-2">Status Information</h3>
-              <div class="bg-accent rounded-lg p-4">
-                <p class="text-white"><strong>Status:</strong> 
-                  <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                    <i [class]="getStatusIcon(selectedCourse.status)" class="mr-1"></i>
-                    {{ selectedCourse.status }}
-                  </span>
-                </p>
-                <p class="text-white"><strong>Approval Status:</strong> 
-                  <span [class]="getApprovalStatusColor(selectedCourse.approvalStatus) + ' px-2 py-1 rounded-full text-xs font-medium'">
-                    {{ selectedCourse.approvalStatus }}
-                  </span>
-                </p>
-                <p *ngIf="selectedCourse.approvedBy" class="text-white"><strong>Approved By:</strong> {{ selectedCourse.approvedBy }}</p>
-                <p *ngIf="selectedCourse.approvedAt" class="text-white"><strong>Approved At:</strong> {{ formatDate(selectedCourse.approvedAt) }}</p>
-                <p *ngIf="selectedCourse.rejectionReason" class="text-white"><strong>Rejection Reason:</strong> {{ selectedCourse.rejectionReason }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-6">
-          <h3 class="text-lg font-semibold text-white mb-2">Description</h3>
-          <div class="bg-accent rounded-lg p-4">
-            <p class="text-white">{{ selectedCourse.description }}</p>
-          </div>
-        </div>
-
-        <div class="mt-6">
-          <h3 class="text-lg font-semibold text-white mb-2">Learning Objectives</h3>
-          <div class="bg-accent rounded-lg p-4">
-            <ul class="list-disc list-inside text-white space-y-1">
-              <li *ngFor="let objective of selectedCourse.learningObjectives">{{ objective }}</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="mt-6">
-          <h3 class="text-lg font-semibold text-white mb-2">Target Audience</h3>
-          <div class="bg-accent rounded-lg p-4">
-            <ul class="list-disc list-inside text-white space-y-1">
-              <li *ngFor="let audience of selectedCourse.targetAudience">{{ audience }}</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Enrollment Detail Modal -->
-    <div *ngIf="isViewingEnrollment && selectedEnrollment" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-primary rounded-lg p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-2xl font-bold text-white">Enrollment Details</h2>
-          <button (click)="resetForms()" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors">
-            <i class="fas fa-times mr-2"></i>Close
-          </button>
-        </div>
-        
-        <div class="space-y-4">
-          <div class="bg-accent rounded-lg p-4">
-            <h3 class="text-lg font-semibold text-white mb-2">Student Information</h3>
-            <p class="text-white"><strong>Name:</strong> {{ selectedEnrollment.studentName }}</p>
-            <p class="text-white"><strong>Email:</strong> {{ selectedEnrollment.studentEmail }}</p>
-            <p class="text-white"><strong>Enrollment Date:</strong> {{ formatDate(selectedEnrollment.enrollmentDate) }}</p>
-          </div>
-          
-          <div class="bg-accent rounded-lg p-4">
-            <h3 class="text-lg font-semibold text-white mb-2">Course Information</h3>
-            <p class="text-white"><strong>Course:</strong> {{ getCourseById(selectedEnrollment.courseId)?.title }}</p>
-            <p class="text-white"><strong>Status:</strong> 
-              <span [class]="getEnrollmentStatusBadgeColor(selectedEnrollment.status) + ' px-2 py-1 rounded-full text-xs font-medium'">
-                {{ selectedEnrollment.status }}
-              </span>
-            </p>
-            <p class="text-white"><strong>Payment Status:</strong> 
-              <span [class]="getEnrollmentStatusBadgeColor(selectedEnrollment.paymentStatus) + ' px-2 py-1 rounded-full text-xs font-medium'">
-                {{ selectedEnrollment.paymentStatus }}
-              </span>
-            </p>
-            <p class="text-white"><strong>Amount:</strong> {{ formatCurrency(selectedEnrollment.amount, selectedEnrollment.currency) }}</p>
-          </div>
-          
-          <div class="bg-accent rounded-lg p-4">
-            <h3 class="text-lg font-semibold text-white mb-2">Progress</h3>
-            <div class="mb-4">
-              <div class="flex justify-between text-sm mb-1">
-                <span class="text-accent">Overall Progress</span>
-                <span [class]="getProgressColor(selectedEnrollment.progress)">{{ selectedEnrollment.progress }}%</span>
-              </div>
-              <div class="w-full bg-accent rounded-full h-3">
-                <div [class]="getProgressBarColor(selectedEnrollment.progress) + ' h-3 rounded-full'" [style.width.%]="selectedEnrollment.progress"></div>
-              </div>
-            </div>
-            <p class="text-white"><strong>Certificate Earned:</strong> 
-              <span [class]="selectedEnrollment.certificateEarned ? 'text-accent' : 'text-accent'">
-                {{ selectedEnrollment.certificateEarned ? 'Yes' : 'No' }}
-              </span>
-            </p>
-          </div>
-          
-          <div *ngIf="selectedEnrollment.status === 'PENDING'" class="bg-accent rounded-lg p-4">
-            <h3 class="text-lg font-semibold text-white mb-2">Actions</h3>
-            <div class="flex space-x-2">
-              <button (click)="approveEnrollment(selectedEnrollment)" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded transition-colors">
-                <i class="fas fa-check mr-2"></i>Approve
-              </button>
-              <button (click)="rejectEnrollment(selectedEnrollment)" class="bg-accent hover:bg-secondary text-white px-4 py-2 rounded transition-colors">
-                <i class="fas fa-ban mr-2"></i>Reject
-              </button>
-            </div>
-            <div *ngIf="isProcessingEnrollment" class="mt-4">
-              <input 
-                type="text" 
-                [(ngModel)]="rejectionReason"
-                placeholder="Rejection reason..."
-                class="w-full bg-accent text-white px-4 py-2 rounded border border-accent focus:outline-none focus:border-accent"
-              >
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <app-course-detail-modal
+      *ngIf="isViewingCourse && selectedCourse"
+      [course]="selectedCourse"
+      (close)="resetForms()"
+    ></app-course-detail-modal>
   </main>
 </div>

@@ -3,12 +3,11 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { CoursesService, Course, CourseEnrollment } from '../../services/courses.service';
-import { Navbar } from '../navbar/navbar';
 
 @Component({
   selector: 'app-student-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, Navbar],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './student-dashboard.html',
   styleUrl: './student-dashboard.css'
 })
@@ -114,30 +113,76 @@ export class StudentDashboard implements OnInit {
 
   loadDashboardData(): void {
     // Load user's enrolled courses
-    const enrollments = this.coursesService.getMockEnrollments();
-    const allCourses = this.coursesService.getMockCourses();
-    
-    // Calculate statistics
-    this.stats.totalCourses = enrollments.length;
-    this.stats.completedCourses = enrollments.filter(e => e.progress === 100).length;
-    this.stats.inProgressCourses = enrollments.filter(e => e.progress > 0 && e.progress < 100).length;
-    this.stats.averageProgress = enrollments.length > 0 
-      ? Math.round(enrollments.reduce((sum, e) => sum + e.progress, 0) / enrollments.length)
-      : 0;
-    this.stats.totalStudyTime = enrollments.reduce((sum, e) => sum + (e.totalStudyTime || 0), 0);
-    this.stats.certificatesEarned = enrollments.filter(e => e.certificateEarned).length;
-    this.stats.currentStreak = this.currentUser.currentStreak;
+    this.coursesService.getEnrolledCourses().subscribe({
+      next: (coursesWithEnrollments: any[]) => {
+        // Process enrolled courses data
+        const enrollments = coursesWithEnrollments.flatMap(courseWithEnrollment => 
+          (courseWithEnrollment.enrollments || []).map((enrollment: any) => ({
+            id: enrollment.id,
+            courseId: enrollment.courseId,
+            studentId: enrollment.userId,
+            studentName: '',
+            studentEmail: '',
+            enrollmentDate: new Date(enrollment.enrolledAt),
+            status: 'APPROVED' as any,
+            paymentStatus: 'PAID' as any,
+            amount: 0,
+            currency: 'USD',
+            progress: this.calculateProgress(enrollment.progress || []),
+            lastActivityDate: new Date(),
+            lastAccessedAt: new Date(),
+            certificateEarned: false,
+            isFavorite: false,
+            totalStudyTime: 0
+          }))
+        );
 
-    // Get recommended courses (courses not enrolled in)
-    this.recommendedCourses = allCourses.filter(course => 
-      !enrollments.some(enrollment => enrollment.courseId === course.id)
-    ).slice(0, 3);
+        const allCourses = coursesWithEnrollments.map(courseWithEnrollment => ({
+          id: courseWithEnrollment.id,
+          title: courseWithEnrollment.title,
+          description: courseWithEnrollment.description,
+          instructorId: courseWithEnrollment.instructorId,
+          category: courseWithEnrollment.category,
+          difficulty: courseWithEnrollment.difficulty,
+          instructor: courseWithEnrollment.instructor,
+          createdAt: new Date(courseWithEnrollment.createdAt),
+          updatedAt: new Date(courseWithEnrollment.updatedAt),
+          _count: courseWithEnrollment._count
+        }));
 
-    this.loading = false;
+        // Calculate statistics
+        this.stats.totalCourses = enrollments.length;
+        this.stats.completedCourses = enrollments.filter((e: any) => e.progress === 100).length;
+        this.stats.inProgressCourses = enrollments.filter((e: any) => e.progress > 0 && e.progress < 100).length;
+        this.stats.averageProgress = enrollments.length > 0 
+          ? Math.round(enrollments.reduce((sum: number, e: any) => sum + e.progress, 0) / enrollments.length)
+          : 0;
+        this.stats.totalStudyTime = enrollments.reduce((sum: number, e: any) => sum + (e.totalStudyTime || 0), 0);
+        this.stats.certificatesEarned = enrollments.filter((e: any) => e.certificateEarned).length;
+        this.stats.currentStreak = this.currentUser.currentStreak;
+
+        // Get recommended courses (courses not enrolled in)
+        this.recommendedCourses = allCourses.filter(course => 
+          !enrollments.some((enrollment: any) => enrollment.courseId === course.id)
+        ).slice(0, 3);
+
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('Error loading student dashboard data:', error);
+        this.loading = false;
+      }
+    });
   }
 
   switchTab(tab: string): void {
     this.selectedTab = tab;
+  }
+
+  private calculateProgress(progressArray: any[]): number {
+    if (!progressArray || progressArray.length === 0) return 0;
+    const completedModules = progressArray.filter((p: any) => p.completed).length;
+    return Math.round((completedModules / progressArray.length) * 100);
   }
 
   getDaysUntilDue(dueDate: Date): number {
@@ -199,43 +244,13 @@ export class StudentDashboard implements OnInit {
     }
   }
 
-  getStarRating(rating: number): string[] {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      if (i <= rating) {
-        stars.push('fas fa-star text-yellow-400');
-      } else if (i - 0.5 <= rating) {
-        stars.push('fas fa-star-half-alt text-yellow-400');
-      } else {
-        stars.push('far fa-star text-gray-300');
-      }
-    }
-    return stars;
-  }
-
-  getLevelColor(level: string): string {
-    switch (level) {
-      case 'BEGINNER': return 'text-green-500 bg-green-100';
-      case 'INTERMEDIATE': return 'text-blue-500 bg-blue-100';
-      case 'ADVANCED': return 'text-purple-500 bg-purple-100';
+  getDifficultyColor(difficultyName: string): string {
+    switch (difficultyName.toLowerCase()) {
+      case 'beginner': return 'text-green-500 bg-green-100';
+      case 'intermediate': return 'text-yellow-500 bg-yellow-100';
+      case 'advanced': return 'text-red-500 bg-red-100';
       default: return 'text-gray-500 bg-gray-100';
     }
-  }
-
-  formatCurrency(amount: number, currency: string): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency
-    }).format(amount);
-  }
-
-  formatDurationHours(hours: number): string {
-    if (hours >= 24) {
-      const days = Math.floor(hours / 24);
-      const remainingHours = hours % 24;
-      return `${days}d ${remainingHours}h`;
-    }
-    return `${hours}h`;
   }
 
   viewAssignment(assignment: any): void {

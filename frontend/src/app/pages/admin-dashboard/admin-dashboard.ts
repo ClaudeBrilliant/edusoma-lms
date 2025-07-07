@@ -174,7 +174,7 @@ export class AdminDashboardComponent implements OnInit {
 
     if (this.userFilters.search) {
       filtered = filtered.filter(user => 
-        `${user.firstName} ${user.lastName}`.toLowerCase().includes(this.userFilters.search.toLowerCase()) ||
+        user.name.toLowerCase().includes(this.userFilters.search.toLowerCase()) ||
         user.email.toLowerCase().includes(this.userFilters.search.toLowerCase())
       );
     }

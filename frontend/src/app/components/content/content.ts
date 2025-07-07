@@ -2,6 +2,11 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { ProgressService, CourseProgress } from '../../services/progress.service';
+import { QuizService, QuizSubmission } from '../../services/quiz.service';
+import { AuthService } from '../../services/auth.service';
+import { ActivatedRoute } from '@angular/router';
+import { NotificationService } from '../../services/notification.service';
 
 interface Lesson {
   id: string;
@@ -96,11 +101,57 @@ export class Content implements OnInit {
   selectedStatus = 'all';
   showCompleted = true;
   Math = Math;
+  
+  // Course and enrollment data
+  courseId: string = '';
+  enrollmentId: string = '';
+  courseProgress: CourseProgress | null = null;
+  error: string | null = null;
 
-  constructor() {}
+  constructor(
+    private progressService: ProgressService,
+    private quizService: QuizService,
+    private authService: AuthService,
+    private route: ActivatedRoute,
+    private notificationService: NotificationService
+  ) {}
 
   ngOnInit(): void {
-    this.loadContent();
+    this.route.params.subscribe(params => {
+      this.courseId = params['courseId'];
+      this.enrollmentId = params['enrollmentId'];
+      if (this.courseId) {
+        this.loadContent();
+        if (this.enrollmentId) {
+          this.loadCourseProgress();
+        }
+      }
+    });
+  }
+
+  loadCourseProgress(): void {
+    this.progressService.getCourseProgress(this.enrollmentId).subscribe({
+      next: (progress) => {
+        this.courseProgress = progress;
+        this.updateLessonsFromProgress(progress);
+      },
+      error: (error) => {
+        console.error('Error loading course progress:', error);
+        this.error = 'Failed to load course progress';
+      }
+    });
+  }
+
+  updateLessonsFromProgress(progress: CourseProgress): void {
+    // Update lesson completion status based on backend progress
+    this.lessons.forEach(lesson => {
+      const moduleProgress = progress.modules.find(m => m.id === lesson.id);
+      if (moduleProgress) {
+        lesson.status = moduleProgress.completed ? 'COMPLETED' : 'NOT_STARTED';
+        lesson.progress = moduleProgress.completed ? 100 : 0;
+        lesson.completedAt = moduleProgress.completedAt;
+      }
+    });
   }
 
   loadContent(): void {
@@ -381,11 +432,80 @@ export class Content implements OnInit {
   }
 
   completeLesson(lesson: Lesson): void {
-    console.log('Completing lesson:', lesson.id);
-    lesson.status = 'COMPLETED';
-    lesson.progress = 100;
-    lesson.completedAt = new Date();
+    if (!this.enrollmentId) {
+      console.error('No enrollment ID available');
+      return;
+    }
+
+    this.progressService.markModuleCompleted(this.enrollmentId, lesson.id).subscribe({
+      next: (progress) => {
+        console.log('Lesson completed successfully:', lesson.id);
+        lesson.status = 'COMPLETED';
+        lesson.progress = 100;
+        lesson.completedAt = new Date();
+        
+        // Reload course progress to check if course is completed
+        this.loadCourseProgress();
+        
+        // Check if course is completed and certificate should be generated
+        if (this.courseProgress?.isCourseCompleted) {
+          this.notificationService.showCourseCompletion(lesson.title);
+        } else {
+          this.notificationService.showModuleCompletion(lesson.title);
+        }
+      },
+      error: (error) => {
+        console.error('Error completing lesson:', error);
+        this.error = 'Failed to complete lesson';
+      }
+    });
   }
+
+  // Remove this method as we're using the notification service now
+
+  submitQuiz(lesson: Lesson, answers: any): void {
+    if (!lesson.quiz) {
+      console.error('No quiz found for lesson');
+      return;
+    }
+
+    const submission: QuizSubmission = {
+      quizId: lesson.quiz.id,
+      answers: Object.keys(answers).map(questionId => ({
+        questionId,
+        response: answers[questionId]
+      }))
+    };
+
+    this.quizService.submitQuiz(lesson.quiz.id, submission).subscribe({
+      next: (result) => {
+        console.log('Quiz submitted successfully:', result);
+        
+        if (result.passed) {
+          lesson.status = 'COMPLETED';
+          lesson.progress = 100;
+          lesson.completedAt = new Date();
+          
+          // Reload course progress to check if course is completed
+          this.loadCourseProgress();
+          
+                  // Check if course is completed and certificate should be generated
+        if (this.courseProgress?.isCourseCompleted) {
+          this.notificationService.showCourseCompletion(lesson.title);
+        }
+        }
+        
+        // Show quiz results
+        this.notificationService.showQuizCompletion(lesson.title, result.passed, result.score);
+      },
+      error: (error) => {
+        console.error('Error submitting quiz:', error);
+        this.error = 'Failed to submit quiz';
+      }
+    });
+  }
+
+  // Remove this method as we're using the notification service now
 
   downloadMaterial(material: ContentMaterial): void {
     console.log('Downloading material:', material.id);

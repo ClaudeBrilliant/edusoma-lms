@@ -19,8 +19,9 @@
           <a 
             *ngFor="let item of navigationItems" 
             [routerLink]="item.path"
-            routerLinkActive="bg-secondary text-white"
-            class="text-accent hover:bg-secondary hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
+            routerLinkActive="active-nav-item"
+            [routerLinkActiveOptions]="{ exact: true }"
+            class="nav-link text-accent hover:bg-secondary hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors"
           >
             <i [class]="item.icon" class="mr-2"></i>
             {{ item.name }}
@@ -110,11 +111,11 @@
               class="flex items-center text-accent hover:text-white p-2 rounded-md transition-colors"
             >
               <img 
-                [src]="currentUser.avatar" 
-                [alt]="currentUser.name"
+                [src]="getUserAvatar()" 
+                [alt]="getUserDisplayName()"
                 class="w-8 h-8 rounded-full mr-2"
               >
-              <span class="hidden sm:block text-sm font-medium">{{ currentUser.name }}</span>
+              <span class="hidden sm:block text-sm font-medium">{{ getUserDisplayName() }}</span>
               <i class="fas fa-chevron-down ml-1 text-xs"></i>
             </button>
 
@@ -124,8 +125,9 @@
               class="absolute right-0 mt-2 w-48 bg-secondary rounded-lg shadow-lg border border-accent py-1"
             >
               <div class="px-4 py-2 border-b border-accent">
-                <p class="text-white text-sm font-medium">{{ currentUser.name }}</p>
-                <p class="text-accent text-xs">{{ currentUser.email }}</p>
+                <p class="text-white text-sm font-medium">{{ getUserDisplayName() }}</p>
+                <p class="text-accent text-xs">{{ currentUser?.email }}</p>
+                <p class="text-accent text-xs capitalize">{{ getUserRole() }}</p>
               </div>
               
               <a 

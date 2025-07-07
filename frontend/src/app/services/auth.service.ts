@@ -1,19 +1,17 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { delay, tap } from 'rxjs/operators';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+import { delay, tap, catchError, map } from 'rxjs/operators';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 export interface User {
   id: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
-  role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
-  avatar: string;
+  role: string; // Accept any string to allow lowercase normalization
   isVerified: boolean;
   isActive: boolean;
-  lastLogin: Date;
-  joinDate: Date;
-  preferences: UserPreferences;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface UserPreferences {
@@ -31,20 +29,19 @@ export interface LoginCredentials {
 }
 
 export interface RegisterData {
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
   password: string;
   confirmPassword: string;
+  role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
   agreeToTerms: boolean;
   agreeToMarketing?: boolean;
 }
 
 export interface AuthResponse {
   user: User;
-  token: string;
-  refreshToken: string;
-  expiresAt: Date;
+  access_token: string;
+  message?: string;
 }
 
 export interface PasswordResetRequest {
@@ -82,69 +79,10 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   private isAuthenticatedSubject = new BehaviorSubject<boolean>(false);
   private tokenSubject = new BehaviorSubject<string | null>(null);
+  
+  private readonly API_BASE_URL = 'http://localhost:3000/api/v1';
 
-  // Mock users for development
-  private mockUsers: User[] = [
-    {
-      id: 'student-1',
-      firstName: 'John',
-      lastName: 'Doe',
-      email: 'demo@example.com',
-      role: 'STUDENT',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face',
-      isVerified: true,
-      isActive: true,
-      lastLogin: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      joinDate: new Date('2024-01-15'),
-      preferences: {
-        theme: 'dark',
-        language: 'en',
-        timezone: 'America/New_York',
-        emailNotifications: true,
-        pushNotifications: true
-      }
-    },
-    {
-      id: 'instructor-1',
-      firstName: 'Sarah',
-      lastName: 'Johnson',
-      email: 'sarah.johnson@example.com',
-      role: 'INSTRUCTOR',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=40&h=40&fit=crop&crop=face',
-      isVerified: true,
-      isActive: true,
-      lastLogin: new Date(Date.now() - 1 * 60 * 60 * 1000),
-      joinDate: new Date('2023-11-20'),
-      preferences: {
-        theme: 'dark',
-        language: 'en',
-        timezone: 'America/Los_Angeles',
-        emailNotifications: true,
-        pushNotifications: true
-      }
-    },
-    {
-      id: 'admin-1',
-      firstName: 'David',
-      lastName: 'Wilson',
-      email: 'david.wilson@example.com',
-      role: 'ADMIN',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop&crop=face',
-      isVerified: true,
-      isActive: true,
-      lastLogin: new Date(Date.now() - 15 * 60 * 1000),
-      joinDate: new Date('2023-06-01'),
-      preferences: {
-        theme: 'dark',
-        language: 'en',
-        timezone: 'America/Seattle',
-        emailNotifications: true,
-        pushNotifications: true
-      }
-    }
-  ];
-
-  constructor() {
+  constructor(private http: HttpClient) {
     this.initializeAuth();
   }
 
@@ -183,277 +121,193 @@ export class AuthService {
   private initializeAuth(): void {
     const token = this.getStoredToken();
     const user = this.getStoredUser();
-    
+    console.log('[AuthService] initializeAuth: token', token, 'user', user);
     if (token && user && !this.isTokenExpired(token)) {
       this.setAuthState(user, token);
+      // Removed getProfile() call to avoid circular dependency
     } else {
       this.clearAuthState();
+      this.clearStoredAuthData();
     }
   }
 
   // Login
   login(credentials: LoginCredentials): Observable<AuthResponse> {
-    const user = this.mockUsers.find(u => u.email === credentials.email);
-    
-    if (!user) {
-      throw new Error('Invalid email or password');
-    }
-
-    // Simulate password validation (in real app, this would be server-side)
-    if (credentials.email === 'demo@example.com' && credentials.password === 'password') {
-      const token = this.generateToken(user);
-      const refreshToken = this.generateRefreshToken();
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-      const response: AuthResponse = {
-        user,
-        token,
-        refreshToken,
-        expiresAt
-      };
-
-      return of(response).pipe(
-        delay(800),
-        tap(response => {
-          this.setAuthState(response.user, response.token);
-          if (credentials.rememberMe) {
-            this.storeAuthData(response);
-          }
-        })
-      );
-    } else {
-      throw new Error('Invalid email or password');
-    }
+    return this.http.post<AuthResponse>(`${this.API_BASE_URL}/auth/login`, {
+      email: credentials.email,
+      password: credentials.password
+    }).pipe(
+      tap(response => {
+        this.setAuthState(response.user, response.access_token);
+        this.storeAuthData(response); // Always persist auth data!
+      }),
+      catchError(error => {
+        console.error('Login error:', error);
+        return throwError(() => new Error(error.error?.message || 'Login failed'));
+      })
+    );
   }
 
   // Register
   register(data: RegisterData): Observable<AuthResponse> {
-    // Check if user already exists
-    const existingUser = this.mockUsers.find(u => u.email === data.email);
-    if (existingUser) {
-      throw new Error('An account with this email already exists');
-    }
-
     // Validate password match
     if (data.password !== data.confirmPassword) {
-      throw new Error('Passwords do not match');
+      return throwError(() => new Error('Passwords do not match'));
     }
 
-    // Create new user
-    const newUser: User = {
-      id: `user-${Date.now()}`,
-      firstName: data.firstName,
-      lastName: data.lastName,
+    return this.http.post<AuthResponse>(`${this.API_BASE_URL}/auth/register`, {
+      name: data.name,
       email: data.email,
-      role: 'STUDENT', // Default role
-      avatar: this.generateAvatar(data.firstName, data.lastName),
-      isVerified: false,
-      isActive: true,
-      lastLogin: new Date(),
-      joinDate: new Date(),
-      preferences: {
-        theme: 'dark',
-        language: 'en',
-        timezone: 'UTC',
-        emailNotifications: true,
-        pushNotifications: true
-      }
-    };
-
-    // Add to mock users
-    this.mockUsers.push(newUser);
-
-    const token = this.generateToken(newUser);
-    const refreshToken = this.generateRefreshToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    const response: AuthResponse = {
-      user: newUser,
-      token,
-      refreshToken,
-      expiresAt
-    };
-
-    return of(response).pipe(
-      delay(1000),
+      password: data.password,
+      role: data.role
+    }).pipe(
       tap(response => {
-        this.setAuthState(response.user, response.token);
-        this.storeAuthData(response);
+        // Note: Registration doesn't automatically log in the user
+        // They need to verify their email first
+        console.log('Registration successful:', response.message);
+      }),
+      catchError(error => {
+        console.error('Registration error:', error);
+        return throwError(() => new Error(error.error?.message || 'Registration failed'));
+      })
+    );
+  }
+
+  // Verify email
+  verifyEmail(email: string, code: string): Observable<any> {
+    return this.http.post(`${this.API_BASE_URL}/auth/verify-email`, {
+      email,
+      code
+    }).pipe(
+      catchError(error => {
+        console.error('Email verification error:', error);
+        return throwError(() => new Error(error.error?.message || 'Email verification failed'));
+      })
+    );
+  }
+
+  // Resend verification email
+  resendVerificationEmail(email: string): Observable<any> {
+    return this.http.post(`${this.API_BASE_URL}/auth/resend-verification`, {
+      email
+    }).pipe(
+      catchError(error => {
+        console.error('Resend verification error:', error);
+        return throwError(() => new Error(error.error?.message || 'Failed to resend verification email'));
       })
     );
   }
 
   // Logout
   logout(): Observable<void> {
-    return of(void 0).pipe(
-      delay(300),
+    return this.http.post<void>(`${this.API_BASE_URL}/auth/logout`, {}).pipe(
       tap(() => {
         this.clearAuthState();
         this.clearStoredAuthData();
+      }),
+      catchError(error => {
+        // Even if logout fails on server, clear local state
+        this.clearAuthState();
+        this.clearStoredAuthData();
+        return of(void 0);
       })
     );
   }
 
-  // Refresh token
-  refreshToken(): Observable<AuthResponse> {
-    const currentUser = this.currentUser;
-    const currentToken = this.token;
-
-    if (!currentUser || !currentToken) {
-      throw new Error('No active session');
-    }
-
-    const newToken = this.generateToken(currentUser);
-    const refreshToken = this.generateRefreshToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    const response: AuthResponse = {
-      user: currentUser,
-      token: newToken,
-      refreshToken,
-      expiresAt
-    };
-
-    return of(response).pipe(
-      delay(500),
-      tap(response => {
-        this.setAuthState(response.user, response.token);
-        this.storeAuthData(response);
+  // Get user profile
+  getProfile(): Observable<User> {
+    return this.http.get<User>(`${this.API_BASE_URL}/auth/profile`).pipe(
+      tap(user => {
+        this.currentUserSubject.next(user);
+      }),
+      catchError(error => {
+        console.error('Get profile error:', error);
+        return throwError(() => new Error(error.error?.message || 'Failed to get profile'));
       })
     );
   }
 
   // Password reset request
-  requestPasswordReset(request: PasswordResetRequest): Observable<void> {
-    const user = this.mockUsers.find(u => u.email === request.email);
-    
-    if (!user) {
-      // Don't reveal if email exists or not for security
-      return of(void 0).pipe(delay(800));
-    }
-
-    // Simulate sending reset email
-    return of(void 0).pipe(delay(800));
-  }
-
-  // Confirm password reset
-  confirmPasswordReset(confirm: PasswordResetConfirm): Observable<void> {
-    // Simulate token validation and password update
-    return of(void 0).pipe(delay(800));
-  }
-
-  // Change password
-  changePassword(request: ChangePasswordRequest): Observable<void> {
-    if (!this.isAuthenticated) {
-      throw new Error('User not authenticated');
-    }
-
-    if (request.newPassword !== request.confirmPassword) {
-      throw new Error('New passwords do not match');
-    }
-
-    // Simulate password change
-    return of(void 0).pipe(delay(600));
-  }
-
-  // Social login
-  socialLogin(request: SocialLoginRequest): Observable<AuthResponse> {
-    // Simulate social login
-    const user = this.mockUsers[0]; // Use first mock user for demo
-    const token = this.generateToken(user);
-    const refreshToken = this.generateRefreshToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    const response: AuthResponse = {
-      user,
-      token,
-      refreshToken,
-      expiresAt
-    };
-
-    return of(response).pipe(
-      delay(1000),
-      tap(response => {
-        this.setAuthState(response.user, response.token);
-        this.storeAuthData(response);
+  requestPasswordReset(request: PasswordResetRequest): Observable<any> {
+    return this.http.post(`${this.API_BASE_URL}/auth/forgot-password`, {
+      email: request.email
+    }).pipe(
+      catchError(error => {
+        console.error('Password reset request error:', error);
+        return throwError(() => new Error(error.error?.message || 'Failed to send password reset email'));
       })
     );
   }
 
-  // Verify email
-  verifyEmail(token: string): Observable<void> {
+  // Confirm password reset
+  confirmPasswordReset(confirm: PasswordResetConfirm): Observable<any> {
+    return this.http.post(`${this.API_BASE_URL}/auth/reset-password`, {
+      token: confirm.token,
+      newPassword: confirm.newPassword
+    }).pipe(
+      catchError(error => {
+        console.error('Password reset confirmation error:', error);
+        return throwError(() => new Error(error.error?.message || 'Failed to reset password'));
+      })
+    );
+  }
+
+  // Change password
+  changePassword(request: ChangePasswordRequest): Observable<any> {
     if (!this.isAuthenticated) {
-      throw new Error('User not authenticated');
+      return throwError(() => new Error('User not authenticated'));
     }
 
-    // Simulate email verification
-    const currentUser = this.currentUser;
-    if (currentUser) {
-      currentUser.isVerified = true;
-      this.currentUserSubject.next(currentUser);
+    if (request.newPassword !== request.confirmPassword) {
+      return throwError(() => new Error('New passwords do not match'));
     }
 
-    return of(void 0).pipe(delay(600));
+    // Note: This endpoint doesn't exist in your backend yet
+    // You'll need to create it
+    return throwError(() => new Error('Change password endpoint not implemented'));
+  }
+
+  // Social login (not implemented in backend yet)
+  socialLogin(request: SocialLoginRequest): Observable<AuthResponse> {
+    return throwError(() => new Error('Social login not implemented'));
   }
 
   // Update user profile
   updateProfile(updates: Partial<User>): Observable<User> {
     if (!this.isAuthenticated) {
-      throw new Error('User not authenticated');
+      return throwError(() => new Error('User not authenticated'));
     }
 
     const currentUser = this.currentUser;
     if (!currentUser) {
-      throw new Error('No current user');
+      return throwError(() => new Error('No current user'));
     }
 
-    const updatedUser = { ...currentUser, ...updates };
-    this.currentUserSubject.next(updatedUser);
-
-    // Update in mock users
-    const userIndex = this.mockUsers.findIndex(u => u.id === currentUser.id);
-    if (userIndex !== -1) {
-      this.mockUsers[userIndex] = updatedUser;
-    }
-
-    return of(updatedUser).pipe(delay(500));
+    return this.http.patch<User>(`${this.API_BASE_URL}/users/${currentUser.id}`, updates).pipe(
+      tap(updatedUser => {
+        this.currentUserSubject.next(updatedUser);
+      }),
+      catchError(error => {
+        console.error('Update profile error:', error);
+        return throwError(() => new Error(error.error?.message || 'Failed to update profile'));
+      })
+    );
   }
 
-  // Update user preferences
+  // Update preferences (not implemented in backend yet)
   updatePreferences(preferences: Partial<UserPreferences>): Observable<User> {
-    if (!this.isAuthenticated) {
-      throw new Error('User not authenticated');
-    }
-
-    const currentUser = this.currentUser;
-    if (!currentUser) {
-      throw new Error('No current user');
-    }
-
-    const updatedUser = {
-      ...currentUser,
-      preferences: { ...currentUser.preferences, ...preferences }
-    };
-
-    this.currentUserSubject.next(updatedUser);
-
-    // Update in mock users
-    const userIndex = this.mockUsers.findIndex(u => u.id === currentUser.id);
-    if (userIndex !== -1) {
-      this.mockUsers[userIndex] = updatedUser;
-    }
-
-    return of(updatedUser).pipe(delay(400));
+    return throwError(() => new Error('Preferences update not implemented'));
   }
 
-  // Check if user has role
+  // Role checking methods
   hasRole(role: string): boolean {
-    return this.currentUser?.role === role;
+    const user = this.currentUser;
+    return user ? user.role === role : false;
   }
 
-  // Check if user has any of the roles
   hasAnyRole(roles: string[]): boolean {
-    return roles.includes(this.currentUser?.role || '');
+    const user = this.currentUser;
+    return user ? roles.includes(user.role) : false;
   }
 
   // Get session info
@@ -466,49 +320,46 @@ export class AuthService {
     };
   }
 
-  // Private methods
+  // Private helper methods
   private setAuthState(user: User, token: string): void {
-    this.currentUserSubject.next(user);
-    this.isAuthenticatedSubject.next(true);
+    // Normalize role to lowercase for frontend checks
+    const normalizedUser = { ...user, role: user.role.toLowerCase() };
+    this.currentUserSubject.next(normalizedUser);
     this.tokenSubject.next(token);
+    this.isAuthenticatedSubject.next(true);
   }
 
   private clearAuthState(): void {
     this.currentUserSubject.next(null);
-    this.isAuthenticatedSubject.next(false);
     this.tokenSubject.next(null);
-  }
-
-  private generateToken(user: User): string {
-    // In real app, this would be a JWT token from the server
-    return `mock-jwt-token-${user.id}-${Date.now()}`;
-  }
-
-  private generateRefreshToken(): string {
-    return `mock-refresh-token-${Date.now()}`;
-  }
-
-  private generateAvatar(firstName: string, lastName: string): string {
-    // Generate avatar URL based on name
-    const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-    return `https://ui-avatars.com/api/?name=${initials}&background=3b82f6&color=fff&size=40`;
+    this.isAuthenticatedSubject.next(false);
   }
 
   private isTokenExpired(token: string): boolean {
-    // In real app, this would decode the JWT and check expiration
-    return false; // Mock implementation
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.exp * 1000 < Date.now();
+    } catch {
+      return true;
+    }
   }
 
   private getTokenExpiration(): Date | null {
-    // In real app, this would decode the JWT and get expiration
-    return new Date(Date.now() + 24 * 60 * 60 * 1000); // Mock implementation
+    const token = this.token;
+    if (!token) return null;
+    
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return new Date(payload.exp * 1000);
+    } catch {
+      return null;
+    }
   }
 
-  // Local storage methods
   private storeAuthData(response: AuthResponse): void {
-    localStorage.setItem('auth_token', response.token);
-    localStorage.setItem('auth_user', JSON.stringify(response.user));
-    localStorage.setItem('auth_expires', response.expiresAt.toISOString());
+    const normalizedUser = { ...response.user, role: response.user.role.toLowerCase() };
+    localStorage.setItem('auth_token', response.access_token);
+    localStorage.setItem('auth_user', JSON.stringify(normalizedUser));
   }
 
   private getStoredToken(): string | null {
@@ -523,6 +374,5 @@ export class AuthService {
   private clearStoredAuthData(): void {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
-    localStorage.removeItem('auth_expires');
   }
 } 

@@ -397,10 +397,10 @@
               <tr *ngFor="let user of getFilteredUsers()" class="hover:bg-primary transition-colors">
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center">
-                    <img [src]="user.avatar" [alt]="user.firstName + ' ' + user.lastName" class="w-10 h-10 rounded-full mr-3">
+                    <img [src]="user.avatar" [alt]="user.name" class="w-10 h-10 rounded-full mr-3">
                     <div>
                       <div class="text-sm font-medium text-white">
-                        {{ user.firstName }} {{ user.lastName }}
+                        {{ user.name }}
                         <i *ngIf="user.isVerified" class="fas fa-check-circle text-accent ml-1"></i>
                       </div>
                       <div class="text-sm text-accent">{{ user.email }}</div>

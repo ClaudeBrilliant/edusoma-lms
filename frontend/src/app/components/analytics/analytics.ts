@@ -24,11 +24,39 @@ export class Analytics implements OnInit {
   }
 
   loadAnalyticsData(): void {
-    // Using mock data for development
-    this.dashboardData = this.analyticsService.getMockDashboardAnalytics();
-    this.courseAnalytics = this.analyticsService.getMockCourseAnalytics();
-    this.engagementData = this.analyticsService.getMockEngagementAnalytics();
-    this.loading = false;
+    this.loading = true;
+
+    // Load dashboard analytics
+    this.analyticsService.getDashboardAnalytics().subscribe({
+      next: (data) => {
+        this.dashboardData = data;
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('Error loading dashboard analytics:', error);
+        this.loading = false;
+      }
+    });
+
+    // Load course analytics
+    this.analyticsService.getCourseAnalytics().subscribe({
+      next: (data) => {
+        this.courseAnalytics = data;
+      },
+      error: (error) => {
+        console.error('Error loading course analytics:', error);
+      }
+    });
+
+    // Load engagement analytics
+    this.analyticsService.getEngagementAnalytics().subscribe({
+      next: (data) => {
+        this.engagementData = data;
+      },
+      error: (error) => {
+        console.error('Error loading engagement analytics:', error);
+      }
+    });
   }
 
   switchTab(tab: string): void {

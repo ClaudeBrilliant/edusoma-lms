@@ -1,6 +1,23 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+
+// Environment configuration
+const environment = {
+  apiUrl: 'http://localhost:3000/api/v1'
+};
+
+export interface DashboardAnalytics {
+  totalRevenue: number;
+  totalStudents: number;
+  totalCourses: number;
+  averageCompletionRate: number;
+  monthlyGrowth: number;
+  topPerformingCourses: CourseAnalytics[];
+  recentActivity: ActivityData[];
+  revenueTrend: RevenueData[];
+}
 
 export interface CourseAnalytics {
   courseId: string;
@@ -12,17 +29,15 @@ export interface CourseAnalytics {
   activeStudents: number;
 }
 
-export interface StudentAnalytics {
-  studentId: string;
-  studentName: string;
-  totalCourses: number;
-  completedCourses: number;
-  averageScore: number;
-  lastActive: Date;
-  certificatesEarned: number;
+export interface ActivityData {
+  date: string;
+  activeUsers: number;
+  courseViews: number;
+  timeSpent: number;
+  quizAttempts: number;
 }
 
-export interface RevenueAnalytics {
+export interface RevenueData {
   period: string;
   revenue: number;
   enrollments: number;
@@ -33,86 +48,139 @@ export interface EngagementAnalytics {
   date: string;
   activeUsers: number;
   courseViews: number;
-  timeSpent: number; // in minutes
+  timeSpent: number;
   quizAttempts: number;
-}
-
-export interface DashboardAnalytics {
-  totalRevenue: number;
-  totalStudents: number;
-  totalCourses: number;
-  averageCompletionRate: number;
-  monthlyGrowth: number;
-  topPerformingCourses: CourseAnalytics[];
-  recentActivity: EngagementAnalytics[];
-  revenueTrend: RevenueAnalytics[];
-}
-
-export interface QuizAnalytics {
-  quizId: string;
-  quizTitle: string;
-  totalAttempts: number;
-  averageScore: number;
-  passRate: number;
-  questionAnalytics: QuestionAnalytics[];
-}
-
-export interface QuestionAnalytics {
-  questionId: string;
-  questionText: string;
-  correctAnswers: number;
-  totalAttempts: number;
-  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class AnalyticsService {
-  private apiUrl = 'http://localhost:3000/api'; // Adjust based on your backend URL
+  private apiUrl = `${environment.apiUrl}/analytics`;
 
-  constructor(private http: HttpClient) { }
+  constructor(private http: HttpClient) {}
 
-  // Dashboard Analytics
+  // Get dashboard analytics
   getDashboardAnalytics(): Observable<DashboardAnalytics> {
-    return this.http.get<DashboardAnalytics>(`${this.apiUrl}/analytics/dashboard`);
+    return this.http.get<any>(`${this.apiUrl}/dashboard`).pipe(
+      map(data => this.mapDashboardAnalytics(data)),
+      catchError(error => {
+        console.error('Error fetching dashboard analytics:', error);
+        return of(this.getMockDashboardAnalytics());
+      })
+    );
   }
 
-  // Course Analytics
-  getCourseAnalytics(courseId?: string): Observable<CourseAnalytics[]> {
-    const url = courseId 
-      ? `${this.apiUrl}/analytics/courses/${courseId}`
-      : `${this.apiUrl}/analytics/courses`;
-    return this.http.get<CourseAnalytics[]>(url);
+  // Get course analytics
+  getCourseAnalytics(): Observable<CourseAnalytics[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/courses`).pipe(
+      map(courses => courses.map(course => this.mapCourseAnalytics(course))),
+      catchError(error => {
+        console.error('Error fetching course analytics:', error);
+        return of(this.getMockCourseAnalytics());
+      })
+    );
   }
 
-  // Student Analytics
-  getStudentAnalytics(studentId?: string): Observable<StudentAnalytics[]> {
-    const url = studentId 
-      ? `${this.apiUrl}/analytics/students/${studentId}`
-      : `${this.apiUrl}/analytics/students`;
-    return this.http.get<StudentAnalytics[]>(url);
+  // Get engagement analytics
+  getEngagementAnalytics(): Observable<EngagementAnalytics[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/engagement`).pipe(
+      map(data => data.map(item => this.mapEngagementAnalytics(item))),
+      catchError(error => {
+        console.error('Error fetching engagement analytics:', error);
+        return of(this.getMockEngagementAnalytics());
+      })
+    );
   }
 
-  // Revenue Analytics
-  getRevenueAnalytics(period: string = 'monthly'): Observable<RevenueAnalytics[]> {
-    return this.http.get<RevenueAnalytics[]>(`${this.apiUrl}/analytics/revenue?period=${period}`);
+  // Get analytics for specific course
+  getCourseAnalyticsById(courseId: string): Observable<CourseAnalytics> {
+    return this.http.get<any>(`${this.apiUrl}/courses/${courseId}`).pipe(
+      map(course => this.mapCourseAnalytics(course)),
+      catchError(error => {
+        console.error('Error fetching course analytics:', error);
+        throw error;
+      })
+    );
   }
 
-  // Engagement Analytics
-  getEngagementAnalytics(days: number = 30): Observable<EngagementAnalytics[]> {
-    return this.http.get<EngagementAnalytics[]>(`${this.apiUrl}/analytics/engagement?days=${days}`);
+  // Get user analytics
+  getUserAnalytics(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/users`).pipe(
+      catchError(error => {
+        console.error('Error fetching user analytics:', error);
+        return of({});
+      })
+    );
   }
 
-  // Quiz Analytics
-  getQuizAnalytics(quizId?: string): Observable<QuizAnalytics[]> {
-    const url = quizId 
-      ? `${this.apiUrl}/analytics/quizzes/${quizId}`
-      : `${this.apiUrl}/analytics/quizzes`;
-    return this.http.get<QuizAnalytics[]>(url);
+  // Get revenue analytics
+  getRevenueAnalytics(): Observable<RevenueData[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/revenue`).pipe(
+      map(data => data.map(item => this.mapRevenueData(item))),
+      catchError(error => {
+        console.error('Error fetching revenue analytics:', error);
+        return of([]);
+      })
+    );
   }
 
-  // Mock data for development
+  // Helper methods to map backend data to frontend interfaces
+  private mapDashboardAnalytics(data: any): DashboardAnalytics {
+    return {
+      totalRevenue: data.totalRevenue || 0,
+      totalStudents: data.totalStudents || 0,
+      totalCourses: data.totalCourses || 0,
+      averageCompletionRate: data.averageCompletionRate || 0,
+      monthlyGrowth: data.monthlyGrowth || 0,
+      topPerformingCourses: (data.topPerformingCourses || []).map((course: any) => this.mapCourseAnalytics(course)),
+      recentActivity: (data.recentActivity || []).map((activity: any) => this.mapActivityData(activity)),
+      revenueTrend: (data.revenueTrend || []).map((revenue: any) => this.mapRevenueData(revenue))
+    };
+  }
+
+  private mapCourseAnalytics(course: any): CourseAnalytics {
+    return {
+      courseId: course.courseId || course.id,
+      courseTitle: course.courseTitle || course.title,
+      totalEnrollments: course.totalEnrollments || 0,
+      completionRate: course.completionRate || 0,
+      averageRating: course.averageRating || 0,
+      totalRevenue: course.totalRevenue || 0,
+      activeStudents: course.activeStudents || 0
+    };
+  }
+
+  private mapActivityData(activity: any): ActivityData {
+    return {
+      date: activity.date,
+      activeUsers: activity.activeUsers || 0,
+      courseViews: activity.courseViews || 0,
+      timeSpent: activity.timeSpent || 0,
+      quizAttempts: activity.quizAttempts || 0
+    };
+  }
+
+  private mapRevenueData(revenue: any): RevenueData {
+    return {
+      period: revenue.period,
+      revenue: revenue.revenue || 0,
+      enrollments: revenue.enrollments || 0,
+      growth: revenue.growth || 0
+    };
+  }
+
+  private mapEngagementAnalytics(engagement: any): EngagementAnalytics {
+    return {
+      date: engagement.date,
+      activeUsers: engagement.activeUsers || 0,
+      courseViews: engagement.courseViews || 0,
+      timeSpent: engagement.timeSpent || 0,
+      quizAttempts: engagement.quizAttempts || 0
+    };
+  }
+
+  // Mock data for development (fallback)
   getMockDashboardAnalytics(): DashboardAnalytics {
     return {
       totalRevenue: 45600,

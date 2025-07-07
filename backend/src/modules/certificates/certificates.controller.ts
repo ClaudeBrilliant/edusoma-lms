@@ -6,10 +6,13 @@ import {
   Param,
   Res,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { CertificatesService } from './certificates.service';
 import { CreateCertificateDto } from './dto/create-certificate.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -17,6 +20,7 @@ import { FileStorageService } from '../../shared/services/file-storage.service';
 import { createReadStream } from 'fs';
 
 @Controller('certificates')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class CertificatesController {
   constructor(
     private readonly certificatesService: CertificatesService,

@@ -2,22 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-
-interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-  joinDate: Date;
-  lastLogin: Date;
-  avatar: string;
-  totalCourses?: number;
-  totalEnrollments?: number;
-  totalRevenue?: number;
-  isVerified: boolean;
-}
+import { UsersService, User, UserFilters } from '../../services/users.service';
 
 @Component({
   selector: 'app-users',
@@ -38,99 +23,36 @@ export class Users implements OnInit {
   totalPages = 1;
   Math = Math; // Make Math available in template
 
-  constructor() {}
+  constructor(private usersService: UsersService) {}
 
   ngOnInit(): void {
     this.loadUsers();
   }
 
   loadUsers(): void {
-    // Mock data - in real app, this would come from a service
-    this.users = [
-      {
-        id: '1',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john.doe@example.com',
-        role: 'STUDENT',
-        status: 'ACTIVE',
-        joinDate: new Date('2024-01-15'),
-        lastLogin: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face',
-        totalEnrollments: 8,
-        isVerified: true
-      },
-      {
-        id: '2',
-        firstName: 'Sarah',
-        lastName: 'Johnson',
-        email: 'sarah.johnson@example.com',
-        role: 'INSTRUCTOR',
-        status: 'ACTIVE',
-        joinDate: new Date('2023-11-20'),
-        lastLogin: new Date(Date.now() - 1 * 60 * 60 * 1000),
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=40&h=40&fit=crop&crop=face',
-        totalCourses: 15,
-        totalRevenue: 12500,
-        isVerified: true
-      },
-      {
-        id: '3',
-        firstName: 'Michael',
-        lastName: 'Chen',
-        email: 'michael.chen@example.com',
-        role: 'STUDENT',
-        status: 'ACTIVE',
-        joinDate: new Date('2024-02-10'),
-        lastLogin: new Date(Date.now() - 5 * 60 * 60 * 1000),
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face',
-        totalEnrollments: 12,
-        isVerified: false
-      },
-      {
-        id: '4',
-        firstName: 'Emily',
-        lastName: 'Davis',
-        email: 'emily.davis@example.com',
-        role: 'INSTRUCTOR',
-        status: 'ACTIVE',
-        joinDate: new Date('2023-09-15'),
-        lastLogin: new Date(Date.now() - 30 * 60 * 1000),
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face',
-        totalCourses: 8,
-        totalRevenue: 8500,
-        isVerified: true
-      },
-      {
-        id: '5',
-        firstName: 'David',
-        lastName: 'Wilson',
-        email: 'david.wilson@example.com',
-        role: 'ADMIN',
-        status: 'ACTIVE',
-        joinDate: new Date('2023-06-01'),
-        lastLogin: new Date(Date.now() - 15 * 60 * 1000),
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop&crop=face',
-        isVerified: true
-      },
-      {
-        id: '6',
-        firstName: 'Lisa',
-        lastName: 'Brown',
-        email: 'lisa.brown@example.com',
-        role: 'STUDENT',
-        status: 'INACTIVE',
-        joinDate: new Date('2024-01-05'),
-        lastLogin: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop&crop=face',
-        totalEnrollments: 3,
-        isVerified: true
-      }
-    ];
+    this.loading = true;
+    const filters: UserFilters = {
+      search: this.searchTerm || undefined,
+      role: this.selectedRole !== 'all' ? this.selectedRole : undefined,
+      status: this.selectedStatus !== 'all' ? this.selectedStatus : undefined,
+      page: this.currentPage,
+      limit: this.itemsPerPage
+    };
 
-    this.filteredUsers = [...this.users];
-    this.calculateTotalPages();
-    this.loading = false;
+    this.usersService.getUsers(filters).subscribe({
+      next: (users) => {
+        this.users = users;
+        this.filteredUsers = [...this.users];
+        this.calculateTotalPages();
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('Error loading users:', error);
+        this.users = [];
+        this.filteredUsers = [];
+        this.loading = false;
+      }
+    });
   }
 
   filterUsers(): void {
@@ -139,8 +61,7 @@ export class Users implements OnInit {
     // Filter by search term
     if (this.searchTerm) {
       filtered = filtered.filter(user => 
-        user.firstName.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        user.lastName.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+        `${user.firstName} ${user.lastName}`.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(this.searchTerm.toLowerCase())
       );
     }

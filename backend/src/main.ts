@@ -1,20 +1,18 @@
 import { NestFactory } from '@nestjs/core';
-<<<<<<< HEAD
-=======
 import { ValidationPipe } from '@nestjs/common';
->>>>>>> 957d6066cc4a8351a38bf3e5a4f015457e88d1e8
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-<<<<<<< HEAD
-  await app.listen(process.env.PORT ?? 3000);
-=======
 
   // Enable CORS
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+    origin: ['http://localhost:4200', 'http://localhost:3000', 'http://127.0.0.1:4200'],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   // Global prefix
@@ -34,6 +32,5 @@ async function bootstrap() {
 
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`📚 API Documentation: http://localhost:${port}/api/v1/docs`);
->>>>>>> 957d6066cc4a8351a38bf3e5a4f015457e88d1e8
 }
 bootstrap();

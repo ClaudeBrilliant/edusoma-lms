@@ -8,6 +8,7 @@ import {
   Delete,
   Query,
   Request,
+  UseGuards,
 } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -29,6 +30,7 @@ export class CoursesController {
   ) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.INSTRUCTOR, Role.ADMIN)
   create(@Body() createCourseDto: CreateCourseDto, @CurrentUser() user: JwtPayload) {
     return this.coursesService.create(createCourseDto, user as any);
@@ -60,14 +62,23 @@ export class CoursesController {
   }
 
   @Get('enrolled')
+  @UseGuards(JwtAuthGuard)
   findEnrolledCourses(@CurrentUser() user: JwtPayload) {
     return this.coursesService.findEnrolledCourses(user.sub);
   }
 
   @Get('my-courses')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.INSTRUCTOR, Role.ADMIN)
   findMyCourses(@CurrentUser() user: JwtPayload) {
     return this.coursesService.findInstructorCourses(user.sub);
+  }
+
+  @Get('stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.INSTRUCTOR, Role.ADMIN)
+  async getInstructorStats(@CurrentUser() user: JwtPayload) {
+    return this.coursesService.getInstructorStats(user.sub);
   }
 
   @Get('public')

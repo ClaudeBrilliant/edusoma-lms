@@ -50,28 +50,28 @@ export interface Analytics {
   providedIn: 'root'
 })
 export class InstructorService {
-  private apiUrl = 'http://localhost:3000/'; 
+  private apiUrl = 'http://localhost:3000/api/v1'; 
   constructor(private http: HttpClient) { }
 
   // Course Management
   getCourses(): Observable<Course[]> {
-    return this.http.get<Course[]>(`${this.apiUrl}/instructor/courses`);
+    return this.http.get<Course[]>(`${this.apiUrl}/courses/my-courses`);
   }
 
   getCourseById(id: string): Observable<Course> {
-    return this.http.get<Course>(`${this.apiUrl}/instructor/courses/${id}`);
+    return this.http.get<Course>(`${this.apiUrl}/courses/${id}`);
   }
 
   createCourse(course: Partial<Course>): Observable<Course> {
-    return this.http.post<Course>(`${this.apiUrl}/instructor/courses`, course);
+    return this.http.post<Course>(`${this.apiUrl}/courses`, course);
   }
 
   updateCourse(id: string, course: Partial<Course>): Observable<Course> {
-    return this.http.put<Course>(`${this.apiUrl}/instructor/courses/${id}`, course);
+    return this.http.patch<Course>(`${this.apiUrl}/courses/${id}`, course);
   }
 
   deleteCourse(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/instructor/courses/${id}`);
+    return this.http.delete<void>(`${this.apiUrl}/courses/${id}`);
   }
 
   // Class Management
@@ -104,54 +104,19 @@ export class InstructorService {
     return this.http.get<Enrollment[]>(`${this.apiUrl}/instructor/courses/${courseId}/enrollments`);
   }
 
-  // Analytics
+  // Analytics - Use the correct analytics endpoint
   getAnalytics(): Observable<Analytics> {
-    return this.http.get<Analytics>(`${this.apiUrl}/instructor/analytics`);
+    return this.http.get<Analytics>(`${this.apiUrl}/courses/stats`);
   }
 
-  // Mock data for development
-  getMockCourses(): Course[] {
-    return [
-      {
-        id: '1',
-        title: 'Introduction to Web Development',
-        description: 'Learn the basics of HTML, CSS, and JavaScript',
-        category: 'Programming',
-        difficulty: 'BEGINNER',
-        instructorId: '1',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        id: '2',
-        title: 'Advanced React Development',
-        description: 'Master React hooks, context, and advanced patterns',
-        category: 'Programming',
-        difficulty: 'ADVANCED',
-        instructorId: '1',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        id: '3',
-        title: 'Data Science Fundamentals',
-        description: 'Introduction to Python, pandas, and data analysis',
-        category: 'Data Science',
-        difficulty: 'INTERMEDIATE',
-        instructorId: '1',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ];
+  // Categories and Difficulties
+  getCategories(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/categories`);
   }
 
-  getMockAnalytics(): Analytics {
-    return {
-      totalCourses: 3,
-      totalStudents: 156,
-      totalClasses: 24,
-      averageRating: 4.7,
-      recentEnrollments: 12
-    };
+  getDifficulties(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/difficulties`);
   }
+
+
 } 
