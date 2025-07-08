@@ -7,6 +7,9 @@ import { QuizService, QuizSubmission } from '../../services/quiz.service';
 import { AuthService } from '../../services/auth.service';
 import { ActivatedRoute } from '@angular/router';
 import { NotificationService } from '../../services/notification.service';
+import { CoursesService, Course, Module as CourseModule } from '../../services/courses.service';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { ViewChild, ElementRef } from '@angular/core';
 
 interface Lesson {
   id: string;
@@ -24,6 +27,7 @@ interface Lesson {
   discussion?: Discussion;
   completedAt?: Date;
   progress: number; // 0-100
+  moduleId: string; // Added moduleId
 }
 
 interface ContentMaterial {
@@ -48,11 +52,11 @@ interface Quiz {
 
 interface QuizQuestion {
   id: string;
-  question: string;
-  type: 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'FILL_BLANK';
-  options?: string[];
-  correctAnswer: string | string[];
-  points: number;
+  text: string; // Changed from 'question' to 'text' to match backend
+  type: 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'FILL_BLANK' | 'ESSAY';
+  options: string[];
+  answer: string; // Changed from 'correctAnswer' to 'answer' to match backend
+  order: number; // Added order to match backend
 }
 
 interface Assignment {
@@ -107,13 +111,40 @@ export class Content implements OnInit {
   enrollmentId: string = '';
   courseProgress: CourseProgress | null = null;
   error: string | null = null;
+  courseTitle: string = '';
+  courseFullyCompleted: boolean = false;
+
+  // Add Material Modal properties
+  showAddMaterialModal = false;
+  materialTitle = '';
+  materialDescription = '';
+  materialType = 'DOCUMENT';
+  materialUrl = '';
+  selectedFile: File | null = null;
+  isUploading = false;
+  uploadProgress = 0;
+  useFileUpload = true;
+
+  @ViewChild('videoPlayer') videoPlayerRef: ElementRef<HTMLVideoElement> | undefined;
+  videoProgressTimer: any = null;
+  lastVideoProgress: number = 0;
+  canMarkComplete: boolean = true;
+  markCompleteReason: string = '';
+
+  // Quiz-related properties
+  quizStarted: boolean = false;
+  quizCompleted: boolean = false;
+  quizAnswers: { [questionId: string]: string } = {};
+  quizResult: any = null;
 
   constructor(
     private progressService: ProgressService,
     private quizService: QuizService,
-    private authService: AuthService,
+    public authService: AuthService,
     private route: ActivatedRoute,
-    private notificationService: NotificationService
+    private notificationService: NotificationService,
+    private coursesService: CoursesService,
+    private http: HttpClient
   ) {}
 
   ngOnInit(): void {
@@ -155,171 +186,90 @@ export class Content implements OnInit {
   }
 
   loadContent(): void {
-    // Mock data - in real app, this would come from a service
-    this.lessons = [
-      {
-        id: '1',
-        title: 'Introduction to Web Development',
-        description: 'Learn the basics of HTML, CSS, and JavaScript',
-        duration: 45,
-        type: 'VIDEO',
-        status: 'COMPLETED',
-        isRequired: true,
-        progress: 100,
-        videoUrl: 'https://example.com/video1.mp4',
-        completedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        materials: [
-          {
-            id: '1',
-            title: 'Web Development Basics PDF',
-            type: 'PDF',
-            url: 'https://example.com/basics.pdf',
-            size: '2.5 MB',
-            downloadCount: 45
-          },
-          {
-            id: '2',
-            title: 'Code Examples',
-            type: 'DOCUMENT',
-            url: 'https://example.com/examples.zip',
-            size: '1.2 MB',
-            downloadCount: 32
-          }
-        ]
-      },
-      {
-        id: '2',
-        title: 'HTML Fundamentals',
-        description: 'Master HTML structure, elements, and semantic markup',
-        duration: 60,
-        type: 'VIDEO',
-        status: 'IN_PROGRESS',
-        isRequired: true,
-        progress: 75,
-        videoUrl: 'https://example.com/video2.mp4',
-        materials: [
-          {
-            id: '3',
-            title: 'HTML Cheat Sheet',
-            type: 'PDF',
-            url: 'https://example.com/html-cheat.pdf',
-            size: '800 KB',
-            downloadCount: 28
-          }
-        ]
-      },
-      {
-        id: '3',
-        title: 'CSS Styling Basics',
-        description: 'Learn CSS selectors, properties, and layout techniques',
-        duration: 90,
-        type: 'READING',
-        status: 'NOT_STARTED',
-        isRequired: true,
-        progress: 0,
-        readingContent: 'CSS is a style sheet language used for describing the presentation of a document written in HTML...',
-        materials: [
-          {
-            id: '4',
-            title: 'CSS Reference Guide',
-            type: 'PDF',
-            url: 'https://example.com/css-guide.pdf',
-            size: '1.5 MB',
-            downloadCount: 15
-          }
-        ]
-      },
-      {
-        id: '4',
-        title: 'JavaScript Fundamentals Quiz',
-        description: 'Test your knowledge of JavaScript basics',
-        duration: 30,
+    this.loading = true;
+    this.coursesService.getCourseDetails(this.courseId).subscribe(
+      (course: any) => {
+        this.courseTitle = course.title;
+        // Flatten all materials from all modules as lessons
+        const lessons: Lesson[] = [];
+        (course.modules || []).forEach((mod: any) => {
+          (mod.materials || []).forEach((mat: any) => {
+            // Handle quiz materials from backend
+            if (mat.type === 'QUIZ' && mat.quiz) {
+              lessons.push({
+                id: mat.id,
+                moduleId: mod.id,
+                title: mat.title,
+                description: mat.description || '',
+                duration: mat.quiz.timeLimit || 30, // Use quiz time limit as duration
         type: 'QUIZ',
         status: 'NOT_STARTED',
         isRequired: true,
         progress: 0,
+                materials: [mat],
+                completedAt: undefined,
         quiz: {
-          id: '1',
-          title: 'JavaScript Basics Quiz',
-          questions: [
-            {
-              id: '1',
-              question: 'What is the correct way to declare a variable in JavaScript?',
-              type: 'MULTIPLE_CHOICE',
-              options: ['var x = 5;', 'variable x = 5;', 'v x = 5;', 'declare x = 5;'],
-              correctAnswer: 'var x = 5;',
-              points: 10
-            },
-            {
-              id: '2',
-              question: 'JavaScript is a case-sensitive language.',
-              type: 'TRUE_FALSE',
-              correctAnswer: 'true',
-              points: 5
-            }
-          ],
-          timeLimit: 30,
-          passingScore: 70,
+                  id: mat.quiz.id,
+                  title: mat.quiz.title,
+                  questions: mat.quiz.questions || [],
+                  timeLimit: mat.quiz.timeLimit,
+                  passingScore: 70, // Default passing score
           attempts: 0,
           maxAttempts: 3
         },
-        materials: []
-      },
-      {
-        id: '5',
-        title: 'Build Your First Website',
-        description: 'Create a complete website using HTML, CSS, and JavaScript',
-        duration: 120,
-        type: 'ASSIGNMENT',
+                assignment: undefined,
+                discussion: undefined,
+              });
+            } else {
+              // Handle regular materials
+              lessons.push({
+                id: mat.id,
+                moduleId: mod.id,
+                title: mat.title,
+                description: mat.description || '',
+                duration: 0, // Backend does not provide duration
+                type: (mat.type || 'DOCUMENT').toUpperCase(),
         status: 'NOT_STARTED',
         isRequired: true,
         progress: 0,
-        assignment: {
-          id: '1',
-          title: 'Personal Portfolio Website',
-          description: 'Create a personal portfolio website with at least 3 pages...',
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          points: 100,
-          submissionType: 'FILE',
-          submitted: false
-        },
-        materials: []
-      },
-      {
-        id: '6',
-        title: 'Web Development Discussion',
-        description: 'Share your thoughts and ask questions about web development',
-        duration: 45,
-        type: 'DISCUSSION',
-        status: 'NOT_STARTED',
-        isRequired: false,
-        progress: 0,
-        discussion: {
-          id: '1',
-          title: 'Web Development Best Practices',
-          description: 'Discuss modern web development practices and tools',
-          posts: [
-            {
-              id: '1',
-              author: 'John Doe',
-              content: 'What are your favorite CSS frameworks?',
-              timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-              replies: []
+                videoUrl: mat.type === 'VIDEO' ? mat.url : undefined,
+                readingContent: mat.type === 'TEXT' ? mat.url : undefined,
+                materials: [mat],
+                completedAt: undefined,
+                quiz: undefined,
+                assignment: undefined,
+                discussion: undefined,
+              });
             }
-          ],
-          isActive: true
-        },
-        materials: []
-      }
-    ];
-
-    this.selectedLesson = this.lessons[0];
+          });
+        });
+        this.lessons = lessons;
+        this.selectedLesson = this.lessons[0] || null;
+        this.loading = false;
+      },
+      (err: any) => {
+        this.error = 'Failed to load course content.';
     this.loading = false;
+      }
+    );
   }
 
   selectLesson(lesson: Lesson): void {
     this.selectedLesson = lesson;
-    this.currentLessonIndex = this.lessons.findIndex(l => l.id === lesson.id);
+    // Track activity when lesson is selected
+    this.trackActivity('view', lesson);
+    // If video, start tracking video progress
+    if (lesson.type === 'VIDEO' && this.videoPlayerRef) {
+      this.setupVideoProgressTracking();
+    }
+    // Reset quiz state when selecting a different lesson
+    if (lesson.type !== 'QUIZ' || !lesson.quiz) {
+      this.quizStarted = false;
+      this.quizCompleted = false;
+      this.quizAnswers = {};
+      this.quizResult = null;
+    }
+    this.checkCanMarkComplete(lesson);
   }
 
   getFilteredLessons(): Lesson[] {
@@ -422,13 +372,15 @@ export class Content implements OnInit {
   }
 
   startLesson(lesson: Lesson): void {
-    console.log('Starting lesson:', lesson.id);
-    // TODO: Navigate to lesson content
+    this.selectLesson(lesson);
+    lesson.status = 'IN_PROGRESS';
+    this.trackActivity('start', lesson);
   }
 
   continueLesson(lesson: Lesson): void {
-    console.log('Continuing lesson:', lesson.id);
-    // TODO: Resume lesson from where left off
+    this.selectLesson(lesson);
+    lesson.status = 'IN_PROGRESS';
+    this.trackActivity('continue', lesson);
   }
 
   completeLesson(lesson: Lesson): void {
@@ -436,22 +388,27 @@ export class Content implements OnInit {
       console.error('No enrollment ID available');
       return;
     }
-
-    this.progressService.markModuleCompleted(this.enrollmentId, lesson.id).subscribe({
+    if (!this.canMarkComplete) {
+      this.notificationService.showError('Cannot Complete', this.markCompleteReason || 'Requirements not met');
+      return;
+    }
+    this.progressService.markModuleCompleted(this.enrollmentId, lesson.moduleId).subscribe({
       next: (progress) => {
-        console.log('Lesson completed successfully:', lesson.id);
         lesson.status = 'COMPLETED';
         lesson.progress = 100;
         lesson.completedAt = new Date();
-        
-        // Reload course progress to check if course is completed
         this.loadCourseProgress();
-        
-        // Check if course is completed and certificate should be generated
         if (this.courseProgress?.isCourseCompleted) {
           this.notificationService.showCourseCompletion(lesson.title);
         } else {
           this.notificationService.showModuleCompletion(lesson.title);
+        }
+        // Auto-show next quiz if available
+        const currentIndex = this.lessons.findIndex(l => l.id === lesson.id);
+        const nextLesson = this.lessons[currentIndex + 1];
+        if (nextLesson && nextLesson.type === 'QUIZ' && nextLesson.quiz) {
+          this.selectLesson(nextLesson);
+          this.startQuiz(nextLesson);
         }
       },
       error: (error) => {
@@ -461,7 +418,120 @@ export class Content implements OnInit {
     });
   }
 
-  // Remove this method as we're using the notification service now
+  // Track user activity for a lesson
+  trackActivity(activityType: string, lesson: Lesson): void {
+    if (!this.enrollmentId) return;
+    const body = {
+      moduleId: lesson.moduleId, // <-- use correct moduleId
+      materialId: lesson.id,     // <-- use lesson/material id
+      activityType,
+      // Optionally add duration/progress/metadata
+    };
+    this.http.post('/api/v1/progress/track-activity', body).subscribe();
+  }
+
+  // Video progress tracking
+  setupVideoProgressTracking(): void {
+    if (!this.videoPlayerRef) return;
+    const video = this.videoPlayerRef.nativeElement;
+    if (this.videoProgressTimer) {
+      clearInterval(this.videoProgressTimer);
+    }
+    this.videoProgressTimer = setInterval(() => {
+      if (video.duration > 0) {
+        const watchedPercentage = (video.currentTime / video.duration) * 100;
+        if (Math.abs(watchedPercentage - this.lastVideoProgress) > 2) {
+          this.lastVideoProgress = watchedPercentage;
+          this.sendVideoProgress(this.selectedLesson!, video.currentTime, video.duration, watchedPercentage);
+        }
+        // Auto-complete if watched >= 80% and not already completed
+        if (watchedPercentage >= 80 && this.selectedLesson && this.selectedLesson.status !== 'COMPLETED') {
+          this.completeLesson(this.selectedLesson);
+          this.notificationService.showSuccess('Lesson Completed', 'You have finished watching the video!');
+        }
+      }
+    }, 3000);
+    // Also listen for the ended event for extra reliability
+    video.onended = () => {
+      if (this.selectedLesson && this.selectedLesson.status !== 'COMPLETED') {
+        this.completeLesson(this.selectedLesson);
+        this.notificationService.showSuccess('Lesson Completed', 'You have finished watching the video!');
+      }
+    };
+  }
+
+  sendVideoProgress(lesson: Lesson, currentTime: number, duration: number, watchedPercentage: number): void {
+    if (!lesson) return;
+    const body = {
+      materialId: lesson.id,     // <-- use lesson/material id
+      moduleId: lesson.moduleId, // <-- use correct moduleId
+      currentTime,
+      duration,
+      watchedPercentage
+    };
+    this.http.post('/api/v1/progress/video-progress', body).subscribe();
+  }
+
+  // Validate completion before enabling Mark Complete
+  checkCanMarkComplete(lesson: Lesson): void {
+    if (!this.enrollmentId || !lesson.moduleId) {
+      this.canMarkComplete = true;
+      this.markCompleteReason = '';
+      return;
+    }
+    this.http.get<any>(`/api/v1/progress/validation/${this.enrollmentId}/${lesson.moduleId}`).subscribe({
+      next: (result) => {
+        this.canMarkComplete = !!result.canComplete;
+        this.markCompleteReason = result.reason || '';
+      },
+      error: (error) => {
+        this.canMarkComplete = false;
+        this.markCompleteReason = 'Unable to validate completion requirements.';
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.videoProgressTimer) {
+      clearInterval(this.videoProgressTimer);
+    }
+  }
+
+  // Submit quiz and record completion
+  // Quiz-related methods
+  startQuiz(lesson: Lesson): void {
+    if (!lesson.quiz) return;
+    
+    this.quizStarted = true;
+    this.quizCompleted = false;
+    this.quizAnswers = {};
+    this.quizResult = null;
+    
+    // Track quiz start activity
+    this.trackActivity('quiz', lesson);
+  }
+
+  cancelQuiz(): void {
+    this.quizStarted = false;
+    this.quizAnswers = {};
+  }
+
+  canSubmitQuiz(): boolean {
+    if (!this.selectedLesson?.quiz) return false;
+    
+    // Check if all questions are answered
+    const answeredQuestions = Object.keys(this.quizAnswers).length;
+    const totalQuestions = this.selectedLesson.quiz.questions.length;
+    
+    return answeredQuestions === totalQuestions;
+  }
+
+  retakeQuiz(): void {
+    this.quizStarted = true;
+    this.quizCompleted = false;
+    this.quizAnswers = {};
+    this.quizResult = null;
+  }
 
   submitQuiz(lesson: Lesson, answers: any): void {
     if (!lesson.quiz) {
@@ -479,24 +549,27 @@ export class Content implements OnInit {
 
     this.quizService.submitQuiz(lesson.quiz.id, submission).subscribe({
       next: (result) => {
-        console.log('Quiz submitted successfully:', result);
+        this.quizCompleted = true;
+        this.quizResult = result;
         
-        if (result.passed) {
-          lesson.status = 'COMPLETED';
-          lesson.progress = 100;
-          lesson.completedAt = new Date();
-          
-          // Reload course progress to check if course is completed
+        // Update quiz attempts
+        if (lesson.quiz) {
+          lesson.quiz.attempts++;
+        }
+        
+        // Record quiz completion in progress
+        this.http.post('/api/v1/progress/quiz-completion', {
+          quizId: lesson.quiz?.id,
+          moduleId: lesson.moduleId,
+          score: result.score,
+          maxScore: result.maxScore ?? lesson.quiz?.questions.length ?? 0,
+          passed: result.passed
+        }).subscribe(() => {
+          // Reload progress and update UI
           this.loadCourseProgress();
-          
-                  // Check if course is completed and certificate should be generated
-        if (this.courseProgress?.isCourseCompleted) {
-          this.notificationService.showCourseCompletion(lesson.title);
-        }
-        }
-        
-        // Show quiz results
         this.notificationService.showQuizCompletion(lesson.title, result.passed, result.score);
+          this.checkCanMarkComplete(lesson);
+        });
       },
       error: (error) => {
         console.error('Error submitting quiz:', error);
@@ -538,5 +611,207 @@ export class Content implements OnInit {
     return this.lessons
       .filter(lesson => lesson.status === 'COMPLETED')
       .reduce((sum, lesson) => sum + lesson.duration, 0);
+  }
+
+  // Add Material Modal methods
+  openAddMaterialModal(): void {
+    this.showAddMaterialModal = true;
+    this.resetMaterialForm();
+  }
+
+  closeAddMaterialModal(): void {
+    this.showAddMaterialModal = false;
+    this.resetMaterialForm();
+  }
+
+  resetMaterialForm(): void {
+    this.materialTitle = '';
+    this.materialDescription = '';
+    this.materialType = 'DOCUMENT';
+    this.materialUrl = '';
+    this.selectedFile = null;
+    this.isUploading = false;
+    this.uploadProgress = 0;
+    this.useFileUpload = true;
+  }
+
+  onFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      this.selectedFile = file;
+      // Auto-detect type based on file extension
+      this.materialType = this.detectFileType(file);
+      // Set title to filename if not already set
+      if (!this.materialTitle) {
+        this.materialTitle = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      }
+    }
+  }
+
+  detectFileType(file: File): string {
+    const extension = file.name.toLowerCase().split('.').pop();
+    switch (extension) {
+      case 'pdf':
+        return 'PDF';
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'wmv':
+        return 'VIDEO';
+      case 'mp3':
+      case 'wav':
+      case 'aac':
+        return 'AUDIO';
+      case 'doc':
+      case 'docx':
+      case 'txt':
+      case 'rtf':
+        return 'DOCUMENT';
+      default:
+        return 'DOCUMENT';
+    }
+  }
+
+  async addMaterial(): Promise<void> {
+    if (!this.selectedLesson) {
+      this.notificationService.showError('Error', 'No lesson selected');
+      return;
+    }
+
+    if (!this.materialTitle.trim()) {
+      this.notificationService.showError('Validation Error', 'Material title is required');
+      return;
+    }
+
+    if (this.useFileUpload && !this.selectedFile) {
+      this.notificationService.showError('Validation Error', 'Please select a file to upload');
+      return;
+    }
+
+    if (!this.useFileUpload && !this.materialUrl.trim()) {
+      this.notificationService.showError('Validation Error', 'Material URL is required');
+      return;
+    }
+
+    this.isUploading = true;
+    this.uploadProgress = 0;
+
+    try {
+      if (this.useFileUpload && this.selectedFile) {
+        // Upload file and create material
+        await this.uploadFileAndCreateMaterial();
+      } else {
+        // Create material with URL
+        await this.createMaterialWithUrl();
+      }
+
+      this.notificationService.showSuccess('Success', 'Material added successfully');
+      this.closeAddMaterialModal();
+      this.loadContent(); // Reload content to show new material
+    } catch (error) {
+      console.error('Error adding material:', error);
+      this.notificationService.showError('Upload Failed', 'Failed to add material');
+    } finally {
+      this.isUploading = false;
+      this.uploadProgress = 0;
+    }
+  }
+
+  private async uploadFileAndCreateMaterial(): Promise<void> {
+    if (!this.selectedFile || !this.selectedLesson) return;
+
+    const formData = new FormData();
+    formData.append('file', this.selectedFile);
+    formData.append('title', this.materialTitle);
+    formData.append('description', this.materialDescription);
+    formData.append('type', this.materialType);
+    formData.append('moduleId', this.selectedLesson.moduleId);
+    formData.append('order', '1');
+    formData.append('visible', 'true');
+
+    const headers = new HttpHeaders();
+    // Add auth token if available
+    const token = this.authService.getToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    return new Promise((resolve, reject) => {
+      this.http.post('/api/v1/content/upload-and-create', formData, { headers })
+        .subscribe({
+          next: (response: any) => {
+            console.log('Material created:', response);
+            resolve();
+          },
+          error: (error) => {
+            console.error('Upload error:', error);
+            reject(error);
+          }
+        });
+    });
+  }
+
+  private async createMaterialWithUrl(): Promise<void> {
+    if (!this.selectedLesson) return;
+
+    const materialData = {
+      title: this.materialTitle,
+      description: this.materialDescription,
+      type: this.materialType,
+      moduleId: this.selectedLesson.moduleId,
+      order: 1,
+      visible: true,
+      url: this.materialUrl
+    };
+
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/json'
+    });
+
+    // Add auth token if available
+    const token = this.authService.getToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    return new Promise((resolve, reject) => {
+      this.http.post('/api/v1/content', materialData, { headers })
+        .subscribe({
+          next: (response: any) => {
+            console.log('Material created:', response);
+            resolve();
+          },
+          error: (error) => {
+            console.error('Create error:', error);
+            reject(error);
+          }
+        });
+    });
+  }
+
+  toggleUploadMethod(): void {
+    this.useFileUpload = !this.useFileUpload;
+    this.selectedFile = null;
+    this.materialUrl = '';
+  }
+
+  markCourseCompleted(): void {
+    if (!this.enrollmentId) {
+      this.notificationService.showError('Error', 'No enrollment ID available');
+      return;
+    }
+    this.loading = true;
+    this.http.post(`/api/v1/progress/mark-course-completed/${this.enrollmentId}`, {}).subscribe({
+      next: (progress: any) => {
+        this.loading = false;
+        this.courseFullyCompleted = true;
+        this.loadCourseProgress();
+        this.notificationService.showSuccess('Course Completed', 'You have completed the entire course!');
+      },
+      error: (error) => {
+        this.loading = false;
+        this.notificationService.showError('Error', 'Failed to mark course as completed');
+      }
+    });
   }
 }

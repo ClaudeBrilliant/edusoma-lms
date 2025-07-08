@@ -149,8 +149,15 @@
               <button (click)="viewCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
                 <i class="fas fa-eye mr-1"></i>View Details
               </button>
-              <button (click)="enrollInCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-graduation-cap mr-1"></i>Enroll Now
+              <button (click)="enrollInCourse(course)" 
+                      class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors"
+                      [disabled]="enrollingCourseId === course.id">
+                <ng-container *ngIf="enrollingCourseId === course.id; else enrollText">
+                  <i class="fas fa-spinner fa-spin mr-1"></i>Enrolling...
+                </ng-container>
+                <ng-template #enrollText>
+                  <i class="fas fa-graduation-cap mr-1"></i>Enroll Now
+                </ng-template>
               </button>
             </div>
           </div>

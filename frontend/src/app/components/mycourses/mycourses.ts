@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CoursesService, Course, CourseEnrollment } from '../../services/courses.service';
+import { EnrollmentService } from '../../services/enrollment.service';
 
 @Component({
   selector: 'app-mycourses',
@@ -19,10 +20,13 @@ export class MyCoursesComponent implements OnInit {
   selectedStatus = 'all';
   selectedProgress = 'all';
 
-  constructor(private coursesService: CoursesService) {}
+  constructor(private coursesService: CoursesService, private enrollmentService: EnrollmentService) {}
 
   ngOnInit(): void {
     this.loadMyCourses();
+    this.enrollmentService.enrollmentChanged$.subscribe(() => {
+      this.loadMyCourses();
+    });
   }
 
   loadMyCourses(): void {

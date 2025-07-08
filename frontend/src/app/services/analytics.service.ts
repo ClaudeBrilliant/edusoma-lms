@@ -9,14 +9,12 @@ const environment = {
 };
 
 export interface DashboardAnalytics {
-  totalRevenue: number;
   totalStudents: number;
   totalCourses: number;
   averageCompletionRate: number;
   monthlyGrowth: number;
   topPerformingCourses: CourseAnalytics[];
   recentActivity: ActivityData[];
-  revenueTrend: RevenueData[];
 }
 
 export interface CourseAnalytics {
@@ -24,8 +22,6 @@ export interface CourseAnalytics {
   courseTitle: string;
   totalEnrollments: number;
   completionRate: number;
-  averageRating: number;
-  totalRevenue: number;
   activeStudents: number;
 }
 
@@ -35,13 +31,6 @@ export interface ActivityData {
   courseViews: number;
   timeSpent: number;
   quizAttempts: number;
-}
-
-export interface RevenueData {
-  period: string;
-  revenue: number;
-  enrollments: number;
-  growth: number;
 }
 
 export interface EngagementAnalytics {
@@ -115,7 +104,7 @@ export class AnalyticsService {
   }
 
   // Get revenue analytics
-  getRevenueAnalytics(): Observable<RevenueData[]> {
+  getRevenueAnalytics(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/revenue`).pipe(
       map(data => data.map(item => this.mapRevenueData(item))),
       catchError(error => {
@@ -128,14 +117,12 @@ export class AnalyticsService {
   // Helper methods to map backend data to frontend interfaces
   private mapDashboardAnalytics(data: any): DashboardAnalytics {
     return {
-      totalRevenue: data.totalRevenue || 0,
       totalStudents: data.totalStudents || 0,
       totalCourses: data.totalCourses || 0,
       averageCompletionRate: data.averageCompletionRate || 0,
       monthlyGrowth: data.monthlyGrowth || 0,
       topPerformingCourses: (data.topPerformingCourses || []).map((course: any) => this.mapCourseAnalytics(course)),
-      recentActivity: (data.recentActivity || []).map((activity: any) => this.mapActivityData(activity)),
-      revenueTrend: (data.revenueTrend || []).map((revenue: any) => this.mapRevenueData(revenue))
+      recentActivity: (data.recentActivity || []).map((activity: any) => this.mapActivityData(activity))
     };
   }
 
@@ -145,8 +132,6 @@ export class AnalyticsService {
       courseTitle: course.courseTitle || course.title,
       totalEnrollments: course.totalEnrollments || 0,
       completionRate: course.completionRate || 0,
-      averageRating: course.averageRating || 0,
-      totalRevenue: course.totalRevenue || 0,
       activeStudents: course.activeStudents || 0
     };
   }
@@ -161,7 +146,7 @@ export class AnalyticsService {
     };
   }
 
-  private mapRevenueData(revenue: any): RevenueData {
+  private mapRevenueData(revenue: any): any {
     return {
       period: revenue.period,
       revenue: revenue.revenue || 0,
@@ -183,7 +168,6 @@ export class AnalyticsService {
   // Mock data for development (fallback)
   getMockDashboardAnalytics(): DashboardAnalytics {
     return {
-      totalRevenue: 45600,
       totalStudents: 1247,
       totalCourses: 23,
       averageCompletionRate: 78.5,
@@ -194,8 +178,6 @@ export class AnalyticsService {
           courseTitle: 'Introduction to Web Development',
           totalEnrollments: 156,
           completionRate: 85.2,
-          averageRating: 4.7,
-          totalRevenue: 12480,
           activeStudents: 142
         },
         {
@@ -203,8 +185,6 @@ export class AnalyticsService {
           courseTitle: 'Advanced React Development',
           totalEnrollments: 89,
           completionRate: 72.1,
-          averageRating: 4.8,
-          totalRevenue: 8900,
           activeStudents: 67
         },
         {
@@ -212,8 +192,6 @@ export class AnalyticsService {
           courseTitle: 'Data Science Fundamentals',
           totalEnrollments: 134,
           completionRate: 81.3,
-          averageRating: 4.6,
-          totalRevenue: 10720,
           activeStudents: 118
         }
       ],
@@ -239,26 +217,6 @@ export class AnalyticsService {
           timeSpent: 52,
           quizAttempts: 94
         }
-      ],
-      revenueTrend: [
-        {
-          period: 'Jan 2024',
-          revenue: 15600,
-          enrollments: 234,
-          growth: 15.2
-        },
-        {
-          period: 'Dec 2023',
-          revenue: 13500,
-          enrollments: 198,
-          growth: 8.7
-        },
-        {
-          period: 'Nov 2023',
-          revenue: 12400,
-          enrollments: 187,
-          growth: 12.1
-        }
       ]
     };
   }
@@ -270,8 +228,6 @@ export class AnalyticsService {
         courseTitle: 'Introduction to Web Development',
         totalEnrollments: 156,
         completionRate: 85.2,
-        averageRating: 4.7,
-        totalRevenue: 12480,
         activeStudents: 142
       },
       {
@@ -279,8 +235,6 @@ export class AnalyticsService {
         courseTitle: 'Advanced React Development',
         totalEnrollments: 89,
         completionRate: 72.1,
-        averageRating: 4.8,
-        totalRevenue: 8900,
         activeStudents: 67
       },
       {
@@ -288,8 +242,6 @@ export class AnalyticsService {
         courseTitle: 'Data Science Fundamentals',
         totalEnrollments: 134,
         completionRate: 81.3,
-        averageRating: 4.6,
-        totalRevenue: 10720,
         activeStudents: 118
       },
       {
@@ -297,8 +249,6 @@ export class AnalyticsService {
         courseTitle: 'Python for Beginners',
         totalEnrollments: 203,
         completionRate: 78.9,
-        averageRating: 4.5,
-        totalRevenue: 16240,
         activeStudents: 178
       },
       {
@@ -306,8 +256,6 @@ export class AnalyticsService {
         courseTitle: 'Machine Learning Basics',
         totalEnrollments: 67,
         completionRate: 65.4,
-        averageRating: 4.9,
-        totalRevenue: 5360,
         activeStudents: 45
       }
     ];

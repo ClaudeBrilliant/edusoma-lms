@@ -313,6 +313,35 @@ export class ProgressService {
     });
   }
 
+  async markCourseCompleted(enrollmentId: string, userId: string) {
+    const enrollment = await this.prisma.enrollment.findFirst({
+      where: { id: enrollmentId, userId },
+      include: { course: { include: { modules: true, quizzes: true } } }
+    });
+    if (!enrollment) throw new ForbiddenException('Not your enrollment');
+
+    // Mark all modules as completed
+    await Promise.all(enrollment.course.modules.map(module =>
+      this.prisma.progress.upsert({
+        where: { enrollmentId_moduleId: { enrollmentId, moduleId: module.id } },
+        update: { completed: true, completedAt: new Date() },
+        create: { enrollmentId, moduleId: module.id, completed: true, completedAt: new Date() }
+      })
+    ));
+
+    // Optionally, mark all quizzes as passed for this user/enrollment
+    const firstModuleId = enrollment.course.modules[0]?.id;
+    await Promise.all(enrollment.course.quizzes.map(quiz =>
+      this.prisma.quizCompletion.upsert({
+        where: { userId_quizId: { userId, quizId: quiz.id } },
+        update: { passed: true, score: 100, maxScore: 100, completedAt: new Date(), moduleId: firstModuleId },
+        create: { userId, quizId: quiz.id, moduleId: firstModuleId, passed: true, score: 100, maxScore: 100, completedAt: new Date() }
+      })
+    ));
+
+    return this.getCourseProgress(enrollmentId, userId);
+  }
+
   async getCourseProgress(
     enrollmentId: string,
     userId: string,

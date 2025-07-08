@@ -4,6 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { CoursesService, Course, CourseEnrollment } from '../../services/courses.service';
 import { ProgressService, CourseProgress } from '../../services/progress.service';
 import { AuthService } from '../../services/auth.service';
+import { Router, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
+import { forkJoin } from 'rxjs';
+import { CertificateService } from '../../services/certificate.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-mycourses',
@@ -24,8 +29,18 @@ export class Mycourses implements OnInit {
   constructor(
     private coursesService: CoursesService,
     private progressService: ProgressService,
-    private authService: AuthService
-  ) {}
+    private authService: AuthService,
+    private router: Router,
+    private certificateService: CertificateService,
+    private notificationService: NotificationService
+  ) {
+    // Auto-refresh on navigation to /mycourses
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd && event.url === '/mycourses')
+    ).subscribe(() => {
+      this.loadMyCourses();
+    });
+  }
 
   ngOnInit(): void {
     this.loadMyCourses();
@@ -74,8 +89,6 @@ export class Mycourses implements OnInit {
         
         // Load real progress data for each enrollment
         this.loadProgressForEnrollments();
-        
-        this.loading = false;
       },
       error: (error) => {
         console.error('Error loading enrolled courses:', error);
@@ -85,22 +98,29 @@ export class Mycourses implements OnInit {
   }
 
   loadProgressForEnrollments(): void {
-    this.enrollments.forEach(enrollment => {
-      this.progressService.getCourseProgress(enrollment.id).subscribe({
-        next: (progress: CourseProgress) => {
-          // Update enrollment progress with real data
+    if (this.enrollments.length === 0) {
+      this.loading = false;
+      return;
+    }
+    const progressObservables = this.enrollments.map(enrollment =>
+      this.progressService.getCourseProgress(enrollment.id)
+    );
+    forkJoin(progressObservables).subscribe({
+      next: (progressResults: CourseProgress[]) => {
+        this.enrollments.forEach((enrollment, idx) => {
+          const progress = progressResults[idx];
           enrollment.progress = progress.overallProgressPercentage;
-          
-          // Check if course is completed
           if (progress.isCourseCompleted) {
             enrollment.status = 'COMPLETED';
             enrollment.certificateEarned = true;
           }
+        });
+        this.loading = false;
         },
         error: (error) => {
-          console.error(`Error loading progress for enrollment ${enrollment.id}:`, error);
+        console.error('Error loading progress for enrollments:', error);
+        this.loading = false;
         }
-      });
     });
   }
 
@@ -345,8 +365,41 @@ export class Mycourses implements OnInit {
   downloadCertificate(course: Course): void {
     const enrollment = this.getEnrollmentByCourseId(course.id);
     if (enrollment && enrollment.certificateEarned) {
-      // TODO: Download certificate
-      console.log('Downloading certificate for course:', course.id);
+      // First, get the certificate for this course
+      this.certificateService.getMyCertificates().subscribe({
+        next: (certificates) => {
+          const certificate = certificates.find(cert => cert.courseId === course.id);
+          if (certificate && certificate.url) {
+            // Extract filename from URL
+            const fileName = certificate.url.split('/').pop() || certificate.certificateNumber;
+            this.certificateService.downloadCertificate(fileName).subscribe({
+              next: (blob) => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${certificate.certificateNumber}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                this.notificationService.showSuccess('Certificate Downloaded', 'Your certificate has been downloaded successfully!');
+              },
+              error: (error) => {
+                console.error('Error downloading certificate:', error);
+                this.notificationService.showError('Download Failed', 'Failed to download certificate. Please try again.');
+              }
+            });
+          } else {
+            this.notificationService.showError('Certificate Not Found', 'Certificate not found for this course.');
+          }
+        },
+        error: (error) => {
+          console.error('Error fetching certificates:', error);
+          this.notificationService.showError('Error', 'Failed to fetch certificate information.');
+        }
+      });
+    } else {
+      this.notificationService.showError('No Certificate', 'No certificate available for this course yet.');
     }
   }
 

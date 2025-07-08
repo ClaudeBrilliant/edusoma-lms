@@ -1,8 +1,20 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { UsersService, User, UserFilters } from '../../services/users.service';
+
+// Simple toast service for demonstration
+class ToastService {
+  show(message: string, type: 'success' | 'error' = 'success') {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.className = `fixed top-4 right-4 z-50 px-4 py-2 rounded shadow-lg text-white ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+}
+const toast = new ToastService();
 
 @Component({
   selector: 'app-users',
@@ -22,8 +34,9 @@ export class Users implements OnInit {
   itemsPerPage = 10;
   totalPages = 1;
   Math = Math; // Make Math available in template
+  pendingDeleteUser: User | null = null;
 
-  constructor(private usersService: UsersService) {}
+  constructor(private usersService: UsersService, private router: Router) {}
 
   ngOnInit(): void {
     this.loadUsers();
@@ -61,7 +74,7 @@ export class Users implements OnInit {
     // Filter by search term
     if (this.searchTerm) {
       filtered = filtered.filter(user => 
-        `${user.firstName} ${user.lastName}`.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+        (user.name && user.name.toLowerCase().includes(this.searchTerm.toLowerCase())) ||
         user.email.toLowerCase().includes(this.searchTerm.toLowerCase())
       );
     }
@@ -69,11 +82,6 @@ export class Users implements OnInit {
     // Filter by role
     if (this.selectedRole !== 'all') {
       filtered = filtered.filter(user => user.role === this.selectedRole);
-    }
-
-    // Filter by status
-    if (this.selectedStatus !== 'all') {
-      filtered = filtered.filter(user => user.status === this.selectedStatus);
     }
 
     this.filteredUsers = filtered;
@@ -168,18 +176,35 @@ export class Users implements OnInit {
   }
 
   viewUser(user: User): void {
-    console.log('Viewing user:', user.id);
-    // TODO: Navigate to user details page
+    this.router.navigate(['/users', user.id]);
   }
 
   editUser(user: User): void {
-    console.log('Editing user:', user.id);
-    // TODO: Navigate to user edit page
+    this.router.navigate(['/users', user.id, 'edit']);
   }
 
   deleteUser(user: User): void {
-    console.log('Deleting user:', user.id);
-    // TODO: Show confirmation dialog and delete user
+    this.pendingDeleteUser = user;
+  }
+
+  confirmDeleteUser(): void {
+    if (!this.pendingDeleteUser) return;
+    const user = this.pendingDeleteUser;
+    this.usersService.deleteUser(user.id).subscribe({
+      next: () => {
+        toast.show('User deleted successfully!', 'success');
+        this.pendingDeleteUser = null;
+        this.loadUsers();
+      },
+      error: (err) => {
+        toast.show('Failed to delete user.', 'error');
+        this.pendingDeleteUser = null;
+      }
+    });
+  }
+
+  cancelDeleteUser(): void {
+    this.pendingDeleteUser = null;
   }
 
   toggleUserStatus(user: User): void {
@@ -189,18 +214,6 @@ export class Users implements OnInit {
 
   getTotalUsers(): number {
     return this.users.length;
-  }
-
-  getActiveUsers(): number {
-    return this.users.filter(user => user.status === 'ACTIVE').length;
-  }
-
-  getInactiveUsers(): number {
-    return this.users.filter(user => user.status === 'INACTIVE').length;
-  }
-
-  getSuspendedUsers(): number {
-    return this.users.filter(user => user.status === 'SUSPENDED').length;
   }
 
   getStudents(): number {

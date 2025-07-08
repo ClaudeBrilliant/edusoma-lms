@@ -68,23 +68,8 @@ export class Analytics implements OnInit {
     // TODO: Reload data based on selected period
   }
 
-  formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  }
-
   formatPercentage(value: number): string {
     return `${value.toFixed(1)}%`;
-  }
-
-  getGrowthColor(growth: number): string {
-    return growth >= 0 ? 'text-green-500' : 'text-red-500';
-  }
-
-  getGrowthIcon(growth: number): string {
-    return growth >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
   }
 
   getCompletionRateColor(rate: number): string {
@@ -93,36 +78,12 @@ export class Analytics implements OnInit {
     return 'text-red-500';
   }
 
-  getRatingStars(rating: number): string[] {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push('fas fa-star');
-    }
-    if (hasHalfStar) {
-      stars.push('fas fa-star-half-alt');
-    }
-    const emptyStars = 5 - stars.length;
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push('far fa-star');
-    }
-    return stars;
-  }
-
   getTopPerformingCourses(): CourseAnalytics[] {
-    return this.courseAnalytics
-      .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, 5);
+    return this.courseAnalytics.slice(0, 5);
   }
 
   getRecentActivity(): EngagementAnalytics[] {
     return this.engagementData.slice(0, 7);
-  }
-
-  getRevenueTrend(): any[] {
-    return this.dashboardData?.revenueTrend || [];
   }
 
   // Helper methods to safely access engagement data

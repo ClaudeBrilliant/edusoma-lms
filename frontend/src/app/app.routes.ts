@@ -36,12 +36,6 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/verification/verification').then(m => m.VerificationComponent)
   },
   {
-    path: 'student-dashboard',
-    loadComponent: () => import('./pages/student-dashboard/student-dashboard').then(m => m.StudentDashboard),
-    canActivate: [AuthGuard],
-    data: { roles: ['student', 'instructor', 'admin'] }
-  },
-  {
     path: 'instructor-dashboard',
     component: InstructorDashboard,
     canActivate: [AuthGuard, RoleGuard],
@@ -98,6 +92,14 @@ export const routes: Routes = [
     loadComponent: () => import('./components/users/users').then(m => m.Users),
     canActivate: [AuthGuard, RoleGuard],
     data: { roles: ['admin'] }
+  },
+  {
+    path: 'users/:id',
+    loadComponent: () => import('./components/users/user-detail').then(m => m.UserDetail),
+  },
+  {
+    path: 'users/:id/edit',
+    loadComponent: () => import('./components/users/user-edit').then(m => m.UserEdit),
   },
   {
     path: 'content',

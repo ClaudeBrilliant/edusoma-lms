@@ -17,15 +17,13 @@ export class ModulesService {
     dto: CreateModuleDto,
     user: User,
   ): Promise<Module> {
-    // Only instructor of the course or admin can add modules
+    // Only instructor or admin can add modules (ownership check removed)
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
     });
     if (!course) throw new NotFoundException('Course not found');
-    if (course.instructorId !== user.id && user.role !== Role.ADMIN) {
-      throw new ForbiddenException(
-        'You can only add modules to your own courses',
-      );
+    if (user.role !== Role.INSTRUCTOR && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only instructors or admins can add modules');
     }
     // Set order if not provided
     let order = dto.order;
@@ -60,8 +58,8 @@ export class ModulesService {
       include: { course: true },
     });
     if (!module) throw new NotFoundException('Module not found');
-    if (module.course.instructorId !== user.id && user.role !== Role.ADMIN) {
-      throw new ForbiddenException('You can only update your own modules');
+    if (user.role !== Role.INSTRUCTOR && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only instructors or admins can update modules');
     }
     return this.prisma.module.update({
       where: { id: moduleId },
@@ -78,17 +76,64 @@ export class ModulesService {
       include: { course: true },
     });
     if (!module) throw new NotFoundException('Module not found');
-    if (module.course.instructorId !== user.id && user.role !== Role.ADMIN) {
-      throw new ForbiddenException('You can only delete your own modules');
+    if (user.role !== Role.INSTRUCTOR && user.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only instructors or admins can delete modules');
     }
     await this.prisma.module.delete({ where: { id: moduleId } });
   }
 
   async getMaterialsForModule(moduleId: string) {
-    return this.prisma.material.findMany({
+    // Get the module to find its courseId
+    const module = await this.prisma.module.findUnique({
+      where: { id: moduleId },
+      select: { courseId: true }
+    });
+
+    if (!module) {
+      throw new NotFoundException('Module not found');
+    }
+
+    // Get regular materials
+    const materials = await this.prisma.material.findMany({
       where: { moduleId },
       orderBy: { order: 'asc' },
     });
+
+    // Get quizzes for this course
+    const quizzes = await this.prisma.quiz.findMany({
+      where: { courseId: module.courseId },
+      include: {
+        questions: {
+          orderBy: { order: 'asc' }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Convert quizzes to material format
+    const quizMaterials = quizzes.map((quiz, index) => ({
+      id: `quiz-${quiz.id}`, // Unique ID for quiz materials
+      type: 'QUIZ',
+      url: `/quizzes/${quiz.id}`, // URL to take the quiz
+      moduleId: moduleId,
+      visible: true,
+      createdAt: quiz.createdAt,
+      description: `Quiz: ${quiz.title}`,
+      order: materials.length + index + 1, // Add quizzes after regular materials
+      title: quiz.title,
+      updatedAt: quiz.createdAt,
+      // Include quiz data for frontend
+      quiz: {
+        id: quiz.id,
+        title: quiz.title,
+        timeLimit: quiz.timeLimit,
+        questions: quiz.questions,
+        courseId: quiz.courseId
+      }
+    }));
+
+    // Combine regular materials and quiz materials
+    return [...materials, ...quizMaterials];
   }
 
   async getModuleById(id: string) {

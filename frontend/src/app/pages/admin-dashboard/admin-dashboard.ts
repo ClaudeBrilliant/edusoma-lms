@@ -32,7 +32,6 @@ export class AdminDashboardComponent implements OnInit {
   
   userFilters = {
     role: 'all',
-    status: 'all',
     search: ''
   };
   
@@ -65,6 +64,7 @@ export class AdminDashboardComponent implements OnInit {
         this.stats = data.stats;
         this.courses = data.courses;
         this.users = data.users;
+        console.log('Loaded users:', this.users); // Debug log
         this.analytics = data.analytics;
         this.systemHealth = data.systemHealth;
         this.approvals = data.approvals;
@@ -168,10 +168,6 @@ export class AdminDashboardComponent implements OnInit {
       filtered = filtered.filter(user => user.role === this.userFilters.role);
     }
 
-    if (this.userFilters.status !== 'all') {
-      filtered = filtered.filter(user => user.status === this.userFilters.status);
-    }
-
     if (this.userFilters.search) {
       filtered = filtered.filter(user => 
         user.name.toLowerCase().includes(this.userFilters.search.toLowerCase()) ||
@@ -192,22 +188,9 @@ export class AdminDashboardComponent implements OnInit {
     this.showUserModal = false;
   }
 
-  updateUserStatus(userId: string, status: UserManagement['status']): void {
-    this.userActionLoading = true;
-    this.adminService.updateUserStatus(userId, status).subscribe({
-      next: (user) => {
-        const index = this.users.findIndex(u => u.id === userId);
-        if (index !== -1) {
-          this.users[index] = user;
-        }
-        this.userActionLoading = false;
-        this.closeUserModal();
-      },
-      error: (error) => {
-        console.error('Error updating user status:', error);
-        this.userActionLoading = false;
-      }
-    });
+  editUser(user: UserManagement) {
+    // TODO: Implement edit logic or open edit modal
+    console.log('Edit user:', user);
   }
 
   deleteUser(userId: string): void {

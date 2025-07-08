@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { Subject } from 'rxjs';
 
 export interface Enrollment {
   id: string;
@@ -86,6 +87,8 @@ export interface StudentEnrollmentHistory {
 })
 export class EnrollmentService {
   private apiUrl = 'http://localhost:3000/api/v1'; // Backend API URL with v1 prefix
+  private enrollmentChangedSource = new Subject<void>();
+  enrollmentChanged$ = this.enrollmentChangedSource.asObservable();
 
   constructor(private http: HttpClient) { }
 
@@ -181,5 +184,9 @@ export class EnrollmentService {
 
   bulkRejectApplications(applicationIds: string[], reason: string): Observable<void> {
     return this.http.patch<void>(`${this.apiUrl}/enrollment-applications/bulk-reject`, { applicationIds, reason });
+  }
+
+  emitEnrollmentChanged() {
+    this.enrollmentChangedSource.next();
   }
 } 

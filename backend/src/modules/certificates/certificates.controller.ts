@@ -7,6 +7,7 @@ import {
   Res,
   HttpStatus,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { CertificatesService } from './certificates.service';
@@ -81,6 +82,34 @@ export class CertificatesController {
     return this.certificatesService.revokeCertificate(id, user.sub);
   }
 
+  @Post('regenerate-pdf/:certificateId')
+  @Roles('INSTRUCTOR', 'ADMIN')
+  async regenerateCertificatePDF(
+    @Param('certificateId') certificateId: string,
+    @CurrentUser() user: any,
+  ) {
+    try {
+      const certificate = await this.certificatesService.findOne(certificateId, user.sub);
+      if (!certificate) {
+        throw new NotFoundException('Certificate not found');
+      }
+
+      // Regenerate the PDF
+      const pdfUrl = await this.certificatesService.generateCertificatePDF(certificateId);
+      
+      // Update the certificate with the new PDF URL
+      const updatedCertificate = await this.certificatesService.updateCertificateUrl(certificateId, pdfUrl);
+      
+      return {
+        message: 'Certificate PDF regenerated successfully',
+        certificate: updatedCertificate
+      };
+    } catch (error) {
+      console.error('Error regenerating certificate PDF:', error);
+      throw error;
+    }
+  }
+
   @Get('download/:fileName')
   @Public()
   async downloadCertificate(
@@ -88,11 +117,21 @@ export class CertificatesController {
     @Res() res: Response,
   ) {
     try {
+      console.log(`Attempting to download certificate: ${fileName}`);
+      
       const filePath = this.fileStorageService.getFilePath(fileName);
+      console.log(`File path: ${filePath}`);
+      
       const fileExists = await this.fileStorageService.fileExists(filePath);
+      console.log(`File exists: ${fileExists}`);
       
       if (!fileExists) {
-        return res.status(HttpStatus.NOT_FOUND).send('Certificate file not found');
+        console.error(`Certificate file not found: ${filePath}`);
+        return res.status(HttpStatus.NOT_FOUND).json({
+          error: 'Certificate file not found',
+          fileName: fileName,
+          filePath: filePath
+        });
       }
 
       const fileStream = createReadStream(filePath);
@@ -100,9 +139,23 @@ export class CertificatesController {
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
       res.setHeader('Content-Type', 'application/pdf');
       
+      fileStream.on('error', (error) => {
+        console.error('Error reading certificate file:', error);
+        if (!res.headersSent) {
+          res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            error: 'Error reading certificate file',
+            details: error.message
+          });
+        }
+      });
+      
       fileStream.pipe(res);
     } catch (error) {
-      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).send('Error downloading certificate');
+      console.error('Error in downloadCertificate:', error);
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        error: 'Error downloading certificate',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 }

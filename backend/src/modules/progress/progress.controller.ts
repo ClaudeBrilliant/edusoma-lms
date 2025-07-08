@@ -83,6 +83,14 @@ export class ProgressController {
     return this.progressService.markModuleCompleted(enrollmentId, moduleId, user.sub, markCompletedDto);
   }
 
+  @Post('mark-course-completed/:enrollmentId')
+  markCourseCompleted(
+    @Param('enrollmentId') enrollmentId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.progressService.markCourseCompleted(enrollmentId, user.sub);
+  }
+
   // New tracking endpoints
   @Post('track-activity')
   trackUserActivity(

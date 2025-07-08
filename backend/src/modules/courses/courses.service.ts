@@ -110,7 +110,54 @@ export class CoursesService {
       throw new NotFoundException('Course not found');
     }
 
-    return course;
+    // Get quizzes for this course
+    const quizzes = await this.prisma.quiz.findMany({
+      where: { courseId: id },
+      include: {
+        questions: {
+          orderBy: { order: 'asc' }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Add quizzes as materials to each module
+    const modulesWithQuizzes = course.modules.map(module => {
+      const quizMaterials = quizzes.map((quiz, index) => ({
+        id: `quiz-${quiz.id}`,
+        type: 'QUIZ',
+        url: `/quizzes/${quiz.id}`,
+        moduleId: module.id,
+        visible: true,
+        createdAt: quiz.createdAt,
+        description: `Quiz: ${quiz.title}`,
+        order: module.materials.length + index + 1,
+        title: quiz.title,
+        updatedAt: quiz.createdAt,
+        // Include quiz data for frontend
+        quiz: {
+          id: quiz.id,
+          title: quiz.title,
+          timeLimit: quiz.timeLimit,
+          questions: quiz.questions,
+          courseId: quiz.courseId
+        }
+      }));
+
+      return {
+        ...module,
+        materials: [...module.materials, ...quizMaterials],
+        _count: {
+          ...module._count,
+          materials: module._count.materials + quizMaterials.length
+        }
+      };
+    });
+
+    return {
+      ...course,
+      modules: modulesWithQuizzes
+    };
   }
 
   async update(

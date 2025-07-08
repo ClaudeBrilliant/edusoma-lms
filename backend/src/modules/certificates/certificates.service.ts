@@ -328,7 +328,10 @@ export class CertificatesService {
     return randomBytes(16).toString('hex');
   }
 
-  private async generateCertificatePDF(certificateId: string): Promise<string> {
+  async generateCertificatePDF(certificateId: string): Promise<string> {
+    try {
+      console.log(`Generating PDF for certificate: ${certificateId}`);
+      
     // Get certificate data with all details
     const certificate = await this.prisma.certificate.findUnique({
       where: { id: certificateId },
@@ -360,6 +363,8 @@ export class CertificatesService {
       throw new NotFoundException('Certificate not found');
     }
 
+      console.log(`Certificate data retrieved for: ${certificate.certificateNumber}`);
+
     // Create certificate template data
     const templateData: CertificateTemplate = {
       studentName: certificate.user.name,
@@ -372,23 +377,40 @@ export class CertificatesService {
 
     // Generate HTML content
     const htmlContent = this.generateCertificateHTML(templateData);
+      console.log('HTML content generated successfully');
     
     // Generate PDF using Puppeteer
+      console.log('Starting Puppeteer browser...');
     const browser = await puppeteer.launch({ 
-      args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] 
     });
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      console.log('Page content set, generating PDF...');
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
     await browser.close();
+      console.log('PDF generated successfully, size:', pdfBuffer.length);
 
     // Save PDF locally
+      console.log('Saving PDF to file storage...');
     const result = await this.fileStorageService.saveCertificatePDF(
       Buffer.from(pdfBuffer),
       certificate.certificateNumber,
     );
+      console.log('PDF saved successfully:', result.downloadUrl);
 
     return result.downloadUrl;
+    } catch (error) {
+      console.error('Error generating certificate PDF:', error);
+      throw error;
+    }
+  }
+
+  async updateCertificateUrl(certificateId: string, certificateUrl: string): Promise<Certificate> {
+    return this.prisma.certificate.update({
+      where: { id: certificateId },
+      data: { certificateUrl },
+    }) as Promise<Certificate>;
   }
 
   private generateCertificateHTML(template: CertificateTemplate): string {
@@ -399,120 +421,188 @@ export class CertificatesService {
           <meta charset="utf-8">
           <title>Certificate of Completion</title>
           <style>
+            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:wght@700&family=Roboto:wght@400;700&display=swap');
             body {
-              font-family: 'Arial', sans-serif;
               margin: 0;
-              padding: 40px;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              min-height: 100vh;
-              display: flex;
-              align-items: center;
-              justify-content: center;
+              padding: 0;
+              background: #f6f3e7;
             }
-            .certificate {
-              background: white;
-              padding: 60px;
-              border-radius: 20px;
-              box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-              text-align: center;
-              max-width: 800px;
+            .certificate-border {
+              width: 900px;
+              height: 635px;
+              margin: 40px auto;
+              background: #fff;
+              border: 12px solid #d4af37;
+              border-radius: 32px;
+              box-shadow: 0 8px 32px rgba(44, 62, 80, 0.18);
+              position: relative;
+              overflow: hidden;
+              box-sizing: border-box;
+            }
+            .certificate-inner {
+              position: relative;
               width: 100%;
+              height: 100%;
+              padding: 48px 60px 32px 60px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: space-between;
+              font-family: 'Roboto', Arial, sans-serif;
+              z-index: 2;
             }
-            .header {
-              color: #333;
-              margin-bottom: 40px;
+            .watermark {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              width: 400px;
+              height: 400px;
+              opacity: 0.08;
+              background: url('https://upload.wikimedia.org/wikipedia/commons/6/6b/Bitmap_Seal_of_Kenya.png') no-repeat center center;
+              background-size: contain;
+              z-index: 1;
+              pointer-events: none;
             }
-            .title {
-              font-size: 48px;
-              font-weight: bold;
-              color: #2c3e50;
+            .logo {
+              width: 80px;
+              height: 80px;
               margin-bottom: 10px;
+              background: url('https://upload.wikimedia.org/wikipedia/commons/6/6b/Bitmap_Seal_of_Kenya.png') no-repeat center center;
+              background-size: contain;
+            }
+            .certificate-title {
+              font-family: 'Great Vibes', cursive;
+              font-size: 54px;
+              color: #bfa13a;
+              font-weight: 700;
+              margin-bottom: 0px;
+              letter-spacing: 2px;
+              text-shadow: 1px 2px 8px #e6d8a8;
+            }
+            .divider {
+              width: 220px;
+              height: 2px;
+              background: linear-gradient(90deg, #fff 0%, #d4af37 50%, #fff 100%);
+              margin: 18px 0 28px 0;
+              border-radius: 2px;
             }
             .subtitle {
-              font-size: 24px;
-              color: #7f8c8d;
-              margin-bottom: 50px;
+              font-size: 22px;
+              color: #555;
+              margin-bottom: 18px;
+              font-weight: 400;
+              letter-spacing: 1px;
+            }
+            .recipient {
+              font-size: 34px;
+              color: #2c3e50;
+              font-weight: 700;
+              margin-bottom: 10px;
+              font-family: 'Playfair Display', serif;
+              letter-spacing: 1px;
             }
             .content {
-              font-size: 18px;
-              line-height: 1.6;
-              color: #34495e;
-              margin-bottom: 40px;
-            }
-            .student-name {
-              font-size: 32px;
-              font-weight: bold;
-              color: #e74c3c;
-              margin: 20px 0;
+              font-size: 20px;
+              color: #444;
+              margin-bottom: 18px;
             }
             .course-name {
-              font-size: 24px;
-              color: #3498db;
-              margin: 20px 0;
+              font-size: 26px;
+              color: #1a73e8;
+              font-weight: 700;
+              margin: 10px 0 18px 0;
+              font-family: 'Playfair Display', serif;
             }
             .details {
+              width: 100%;
               display: flex;
               justify-content: space-between;
-              margin: 40px 0;
-              font-size: 14px;
-              color: #7f8c8d;
+              font-size: 15px;
+              color: #888;
+              margin-bottom: 18px;
             }
-            .signature {
-              margin-top: 60px;
-              border-top: 2px solid #bdc3c7;
-              padding-top: 20px;
+            .details div {
+              text-align: left;
+            }
+            .signature-section {
+              width: 100%;
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              margin-top: 30px;
+            }
+            .signature-block {
+              text-align: center;
+              width: 260px;
+            }
+            .signature-line {
+              border-bottom: 2px solid #bfa13a;
+              margin: 0 auto 8px auto;
+              width: 200px;
+              height: 40px;
+            }
+            .signature-label {
+              font-size: 16px;
+              color: #888;
+              font-family: 'Great Vibes', cursive;
+              font-weight: 700;
+            }
+            .seal {
+              width: 80px;
+              height: 80px;
+              background: url('https://upload.wikimedia.org/wikipedia/commons/6/6b/Bitmap_Seal_of_Kenya.png') no-repeat center center;
+              background-size: contain;
+              margin: 0 auto;
             }
             .verification {
-              margin-top: 30px;
-              font-size: 12px;
-              color: #95a5a6;
+              margin-top: 18px;
+              font-size: 13px;
+              color: #bfa13a;
+              text-align: center;
+              letter-spacing: 1px;
             }
           </style>
         </head>
         <body>
-          <div class="certificate">
-            <div class="header">
-              <div class="title">Certificate of Completion</div>
-              <div class="subtitle">This is to certify that</div>
-            </div>
-            
-            <div class="content">
-              <div class="student-name">${template.studentName}</div>
-              <div>has successfully completed the course</div>
-              <div class="course-name">${template.courseName}</div>
-              <div>on ${template.completionDate}</div>
-            </div>
-            
-            <div class="details">
+          <div class="certificate-border">
+            <div class="watermark"></div>
+            <div class="certificate-inner">
               <div>
-                <strong>Certificate Number:</strong><br>
-                ${template.certificateNumber}
-              </div>
-              <div>
-                <strong>Instructor:</strong><br>
-                ${template.instructorName}
-              </div>
-            </div>
-            
-            <div class="signature">
-              <div style="float: left; width: 45%;">
-                <div style="border-top: 1px solid #000; margin-top: 50px; padding-top: 10px;">
-                  ${template.instructorName}<br>
-                  <small>Instructor</small>
+                <div class="logo"></div>
+                <div class="certificate-title">Certificate of Completion</div>
+                <div class="divider"></div>
+                <div class="subtitle">This is to certify that</div>
+                <div class="recipient">${template.studentName}</div>
+                <div class="content">
+                  has successfully completed the course
+                  <div class="course-name">${template.courseName}</div>
+                  on <b>${template.completionDate}</b>
+                </div>
+                <div class="details">
+                  <div>
+                    <strong>Certificate No:</strong><br>${template.certificateNumber}
+                  </div>
+                  <div>
+                    <strong>Instructor:</strong><br>${template.instructorName}
+                  </div>
                 </div>
               </div>
-              <div style="float: right; width: 45%;">
-                <div style="border-top: 1px solid #000; margin-top: 50px; padding-top: 10px;">
-                  Date<br>
-                  <small>${template.completionDate}</small>
+              <div class="signature-section">
+                <div class="signature-block">
+                  <div class="signature-line"></div>
+                  <div class="signature-label">${template.instructorName}<br>Instructor</div>
+                </div>
+                <div class="seal"></div>
+                <div class="signature-block">
+                  <div class="signature-line"></div>
+                  <div class="signature-label">Date<br>${template.completionDate}</div>
                 </div>
               </div>
-              <div style="clear: both;"></div>
-            </div>
-            
-            <div class="verification">
-              <strong>Verification Code:</strong> ${template.verificationCode}<br>
-              This certificate can be verified at our platform.
+              <div class="verification">
+                <strong>Verification Code:</strong> ${template.verificationCode}<br>
+                This certificate can be verified at our platform.
+              </div>
             </div>
           </div>
         </body>

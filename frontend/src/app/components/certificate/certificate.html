@@ -184,7 +184,7 @@
                       <button (click)="viewCertificate(certificate)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
                         <i class="fas fa-eye mr-1"></i>View
                       </button>
-                      <button (click)="downloadCertificate(certificate)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                      <button *ngIf="canDownloadCertificate(certificate)" (click)="downloadCertificate(certificate)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors">
                         <i class="fas fa-download mr-1"></i>Download
                       </button>
                       <button *ngIf="certificate.status === 'ACTIVE'" (click)="revokeCertificate(certificate)" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors">

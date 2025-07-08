@@ -6,6 +6,7 @@ import { CoursesService, Course, Module } from '../../services/courses.service';
 import { QuizService, Quiz, QuizQuestion } from '../../services/quiz.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-course-editor',
@@ -28,8 +29,7 @@ export class CourseEditor implements OnInit {
   newModule = {
     title: '',
     description: '',
-    order: 1,
-    duration: 30
+    order: 1
   };
 
   // Quiz creation
@@ -39,7 +39,7 @@ export class CourseEditor implements OnInit {
     title: '',
     courseId: '',
     timeLimit: 30,
-    questions: [] as QuizQuestion[]
+    questions: [] as any[]
   };
 
   // Question creation
@@ -53,6 +53,21 @@ export class CourseEditor implements OnInit {
     order: 1
   };
 
+  showMaterialModal = false;
+  creatingMaterial = false;
+  materialInputType: 'file' | 'link' = 'file';
+  selectedFile: File | null = null;
+  newMaterial = {
+    title: '',
+    description: '',
+    type: 'VIDEO',
+    url: '',
+    order: 1,
+    visible: true,
+    moduleId: ''
+  };
+  selectedModuleForMaterial: Module | null = null;
+
   selectedTab = 'modules';
 
   constructor(
@@ -61,7 +76,8 @@ export class CourseEditor implements OnInit {
     private coursesService: CoursesService,
     private quizService: QuizService,
     private authService: AuthService,
-    private notificationService: NotificationService
+    private notificationService: NotificationService,
+    private http: HttpClient // <-- for direct backend call
   ) {}
 
   ngOnInit(): void {
@@ -133,8 +149,7 @@ export class CourseEditor implements OnInit {
     this.newModule = {
       title: '',
       description: '',
-      order: this.modules.length + 1,
-      duration: 30
+      order: this.modules.length + 1
     };
   }
 
@@ -296,9 +311,11 @@ export class CourseEditor implements OnInit {
 
     this.addingQuestion = true;
     const questionData = {
-      ...this.newQuestion,
-      quizId: '', // Will be set when quiz is created
-      id: Date.now().toString() // Temporary ID
+      text: this.newQuestion.text,
+      type: this.newQuestion.type,
+      options: this.newQuestion.options,
+      answer: this.newQuestion.answer,
+      order: this.newQuestion.order
     };
 
     // Add question to the quiz
@@ -337,6 +354,92 @@ export class CourseEditor implements OnInit {
     });
   }
 
+  // Material Management
+  openMaterialModal(module: Module): void {
+    this.selectedModuleForMaterial = module;
+    this.newMaterial = {
+      title: '',
+      description: '',
+      type: 'VIDEO',
+      url: '',
+      order: 1,
+      visible: true,
+      moduleId: module.id
+    };
+    this.showMaterialModal = true;
+  }
+
+  closeMaterialModal(): void {
+    this.showMaterialModal = false;
+    this.selectedModuleForMaterial = null;
+  }
+
+  submitCreateMaterial(): void {
+    // Validate form based on input type
+    if (!this.newMaterial.title.trim()) {
+      this.notificationService.showError('Error', 'Please enter a material title');
+      return;
+    }
+
+    if (this.materialInputType === 'file' && !this.selectedFile) {
+      this.notificationService.showError('Error', 'Please select a file to upload');
+      return;
+    }
+
+    if (this.materialInputType === 'link' && !this.newMaterial.url.trim()) {
+      this.notificationService.showError('Error', 'Please enter a URL');
+      return;
+    }
+
+    this.creatingMaterial = true;
+
+    if (this.materialInputType === 'file' && this.selectedFile) {
+      // Handle file upload
+      const formData = new FormData();
+      formData.append('file', this.selectedFile);
+      formData.append('title', this.newMaterial.title);
+      formData.append('description', this.newMaterial.description || '');
+      formData.append('type', this.newMaterial.type);
+      formData.append('moduleId', this.newMaterial.moduleId);
+      formData.append('order', this.newMaterial.order.toString());
+      formData.append('visible', this.newMaterial.visible.toString());
+
+      // Use the upload-and-create endpoint
+      this.http.post('/api/v1/content/upload-and-create', formData).subscribe({
+        next: (material) => {
+          this.notificationService.showSuccess('Material Created', 'Material has been uploaded and created successfully');
+          this.closeMaterialModal();
+          this.loadModules();
+          this.creatingMaterial = false;
+        },
+        error: (error) => {
+          console.error('Error creating material:', error);
+          this.notificationService.showError('Error', 'Failed to upload and create material');
+          this.creatingMaterial = false;
+        }
+      });
+    } else {
+      // Handle link-based material
+      this.http.post('/api/v1/content', {
+        ...this.newMaterial,
+        order: Number(this.newMaterial.order),
+        visible: !!this.newMaterial.visible
+      }).subscribe({
+        next: (material) => {
+          this.notificationService.showSuccess('Material Created', 'Material has been created successfully');
+          this.closeMaterialModal();
+          this.loadModules();
+          this.creatingMaterial = false;
+        },
+        error: (error) => {
+          console.error('Error creating material:', error);
+          this.notificationService.showError('Error', 'Failed to create material');
+          this.creatingMaterial = false;
+        }
+      });
+    }
+  }
+
   // Utility methods
   switchTab(tab: string): void {
     this.selectedTab = tab;
@@ -363,5 +466,75 @@ export class CourseEditor implements OnInit {
 
   isInstructor(): boolean {
     return this.authService.currentUser?.role === 'instructor' || this.authService.currentUser?.role === 'admin';
+  }
+
+  // File Upload Methods
+  onMaterialTypeChange(): void {
+    // Reset file selection when switching between file and link
+    if (this.materialInputType === 'link') {
+      this.selectedFile = null;
+    }
+    // Auto-detect type based on file extension if file is selected
+    if (this.materialInputType === 'file' && this.selectedFile) {
+      this.newMaterial.type = this.detectFileType(this.selectedFile);
+    }
+  }
+
+  onFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      this.selectedFile = file;
+      // Auto-detect type based on file extension
+      this.newMaterial.type = this.detectFileType(file);
+      // Set title to filename if not already set
+      if (!this.newMaterial.title) {
+        this.newMaterial.title = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      }
+    }
+  }
+
+  detectFileType(file: File): string {
+    const extension = file.name.toLowerCase().split('.').pop();
+    switch (extension) {
+      case 'pdf':
+        return 'PDF';
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'wmv':
+      case 'mkv':
+        return 'VIDEO';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'bmp':
+        return 'IMAGE';
+      case 'doc':
+      case 'docx':
+      case 'txt':
+      case 'rtf':
+      case 'ppt':
+      case 'pptx':
+      case 'xls':
+      case 'xlsx':
+        return 'OTHER';
+      default:
+        return 'OTHER';
+    }
+  }
+
+  formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  removeSelectedFile(): void {
+    this.selectedFile = null;
+    // Reset material type to default
+    this.newMaterial.type = 'VIDEO';
   }
 } 

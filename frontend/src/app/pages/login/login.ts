@@ -81,25 +81,27 @@ export class Login {
         console.log('Login successful:', response);
         
         // Redirect to return URL or appropriate dashboard based on user role
-        setTimeout(() => {
-          const user = this.authService.currentUser;
-          if (user) {
-            switch (user.role) {
-              case 'ADMIN':
-                this.router.navigate(['/admin-dashboard']);
-                break;
-              case 'INSTRUCTOR':
-                this.router.navigate(['/instructor-dashboard']);
-                break;
-              case 'STUDENT':
-              default:
-                this.router.navigate([this.returnUrl]);
-                break;
-            }
-          } else {
-            this.router.navigate([this.returnUrl]);
+        const user = this.authService.currentUser;
+        if (user && user.role) {
+          const role = user.role.toLowerCase();
+          let redirectPath = '/home';
+          switch (role) {
+            case 'admin':
+              redirectPath = '/users';
+              break;
+            case 'instructor':
+              redirectPath = '/instructor-dashboard';
+              break;
+            case 'student':
+            default:
+              redirectPath = '/home';
+              break;
           }
-        }, 1500);
+          console.log('[Login] Redirecting to:', redirectPath);
+          this.router.navigate([redirectPath]);
+        } else {
+          this.router.navigate(['/home']);
+        }
       },
       error: (error) => {
         this.isSubmitting = false;

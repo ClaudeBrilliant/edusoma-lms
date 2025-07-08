@@ -219,7 +219,9 @@ export class CoursesService {
   }
 
   createModule(module: Partial<Module>): Observable<Module> {
-    return this.http.post<Module>(`${this.apiUrl}/modules`, module);
+    // Extract courseId from the module object
+    const { courseId, ...moduleData } = module;
+    return this.http.post<Module>(`${this.apiUrl}/courses/${courseId}/modules`, moduleData);
   }
 
   updateModule(id: string, module: Partial<Module>): Observable<Module> {

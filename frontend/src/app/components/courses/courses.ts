@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CoursesService, Course, Module, Class, CourseEnrollment, CourseReview, CourseStats, CourseCategory, CourseFilter } from '../../services/courses.service';
 import { AuthService } from '../../services/auth.service';
+import { NotificationService } from '../../services/notification.service';
 import { CourseDetailModalComponent } from '../course-detail-modal/course-detail-modal.component';
+import { EnrollmentService } from '../../services/enrollment.service';
 
 @Component({
   selector: 'app-courses',
@@ -58,10 +60,13 @@ export class CoursesComponent implements OnInit {
     thumbnail: ''
   };
   submitting = false;
+  enrollingCourseId: string | null = null;
 
   constructor(
     private coursesService: CoursesService,
-    private authService: AuthService
+    private authService: AuthService,
+    private notificationService: NotificationService,
+    private enrollmentService: EnrollmentService
   ) {}
 
   ngOnInit(): void {
@@ -449,15 +454,9 @@ export class CoursesComponent implements OnInit {
   }
 
   enrollInCourse(course: Course): void {
+    this.enrollingCourseId = course.id;
     const enrollmentData = {
-      courseId: course.id,
-      studentId: this.authService.currentUser?.id || '',
-      enrollmentDate: new Date(),
-      status: 'PENDING' as const,
-      paymentStatus: 'PENDING' as const,
-      amount: 0, // Backend doesn't have price field yet
-      currency: 'USD',
-      progress: 0
+      courseId: course.id
     };
 
     this.coursesService.enrollInCourse(enrollmentData).subscribe({
@@ -466,11 +465,16 @@ export class CoursesComponent implements OnInit {
         if (this.selectedCourse?.id === course.id) {
           this.enrollments.push(enrollment);
         }
-        alert('Enrollment request submitted successfully!');
+        // Optionally update local enrolled courses list here
+        this.notificationService.showSuccess('Enrollment Successful', 'Enrollment request submitted successfully!');
+        // Emit event or update shared state for My Courses component if needed
+        this.enrollmentService.emitEnrollmentChanged();
+        this.enrollingCourseId = null;
       },
       error: (error) => {
         console.error('Error enrolling in course:', error);
-        this.error = 'Failed to enroll in course. Please try again.';
+        this.notificationService.showError('Enrollment Failed', 'Failed to enroll in course. Please try again.');
+        this.enrollingCourseId = null;
       }
     });
   }

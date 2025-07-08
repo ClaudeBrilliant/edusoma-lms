@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.service';
 import { Subscription } from 'rxjs';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-navbar',
@@ -22,6 +23,9 @@ export class Navbar implements OnInit, OnDestroy {
   currentUser: any = null;
   isAuthenticated = false;
   private subscriptions = new Subscription();
+  notifications: any[] = [];
+  unreadCount = 0;
+  isNotificationDropdownOpen = false;
 
   // Navigation items for unauthenticated pages (home, about, contact, login, register)
   unauthenticatedNavigationItems = [
@@ -34,13 +38,9 @@ export class Navbar implements OnInit, OnDestroy {
 
   // Navigation items for authenticated pages (dashboard, mycourses, etc.)
   authenticatedNavigationItems = [
-    { name: 'Dashboard', path: '/student-dashboard', icon: 'fas fa-tachometer-alt' },
     { name: 'My Courses', path: '/mycourses', icon: 'fas fa-graduation-cap' },
     { name: 'Courses', path: '/courses', icon: 'fas fa-book' },
-    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' },
-    { name: 'Instructors', path: '/instructors', icon: 'fas fa-chalkboard-teacher' },
-    { name: 'About', path: '/about', icon: 'fas fa-info-circle' },
-    { name: 'Contact', path: '/contact', icon: 'fas fa-envelope' }
+    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' }
   ];
 
   // Admin navigation items
@@ -49,20 +49,15 @@ export class Navbar implements OnInit, OnDestroy {
     { name: 'Users', path: '/users', icon: 'fas fa-users' },
     { name: 'Courses', path: '/courses', icon: 'fas fa-book' },
     { name: 'Analytics', path: '/analytics', icon: 'fas fa-chart-bar' },
-    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' },
-    { name: 'About', path: '/about', icon: 'fas fa-info-circle' },
-    { name: 'Contact', path: '/contact', icon: 'fas fa-envelope' }
+    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' }
   ];
 
   // Instructor navigation items
   instructorNavigationItems = [
     { name: 'Instructor Dashboard', path: '/instructor-dashboard', icon: 'fas fa-chalkboard-teacher' },
-    { name: 'My Courses', path: '/mycourses', icon: 'fas fa-graduation-cap' },
     { name: 'Courses', path: '/courses', icon: 'fas fa-book' },
     { name: 'Analytics', path: '/analytics', icon: 'fas fa-chart-bar' },
-    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' },
-    { name: 'About', path: '/about', icon: 'fas fa-info-circle' },
-    { name: 'Contact', path: '/contact', icon: 'fas fa-envelope' }
+    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' }
   ];
 
   userMenuItems = [
@@ -73,7 +68,8 @@ export class Navbar implements OnInit, OnDestroy {
 
   constructor(
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
+    private notificationService: NotificationService
   ) {}
 
   ngOnInit(): void {
@@ -98,6 +94,14 @@ export class Navbar implements OnInit, OnDestroy {
         this.currentUser = user;
         this.isAuthenticated = !!user;
         this.updateAuthenticationStatus();
+      })
+    );
+
+    this.subscriptions.add(
+      this.notificationService.getNotifications().subscribe(notifs => {
+        this.notifications = notifs;
+        // Fix: If 'isRead' property does not exist, count all as unread
+        this.unreadCount = notifs.length;
       })
     );
   }
@@ -146,6 +150,10 @@ export class Navbar implements OnInit, OnDestroy {
     }
   }
 
+  toggleNotificationDropdown(): void {
+    this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
+  }
+
   closeMenus(): void {
     this.isMenuOpen = false;
     this.isUserMenuOpen = false;
@@ -180,8 +188,7 @@ export class Navbar implements OnInit, OnDestroy {
   }
 
   getNotificationCount(): number {
-    // TODO: Implement real notification count
-    return 3;
+    return this.unreadCount;
   }
 
   getCartItemCount(): number {

@@ -2,6 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CertificateService, Certificate, CertificateRequest, CertificateStats } from '../../services/certificate.service';
+import { NotificationService } from '../../services/notification.service';
+import { ProgressService } from '../../services/progress.service';
 
 @Component({
   selector: 'app-certificate',
@@ -19,11 +21,17 @@ export class CertificateComponent implements OnInit {
   searchTerm = '';
   selectedStatus = 'all';
   verificationNumber = '';
+  completedCourses: Set<string> = new Set();
 
-  constructor(private certificateService: CertificateService) {}
+  constructor(
+    private certificateService: CertificateService,
+    private notificationService: NotificationService,
+    private progressService: ProgressService
+  ) {}
 
   ngOnInit(): void {
     this.loadCertificateData();
+    this.loadCompletedCourses();
   }
 
   loadCertificateData(): void {
@@ -60,6 +68,25 @@ export class CertificateComponent implements OnInit {
         console.error('Error loading certificate requests:', error);
       }
     });
+  }
+
+  loadCompletedCourses(): void {
+    // Fetch all progress records and mark completed courses
+    this.progressService.findByUser().subscribe(progressRecords => {
+      // Find completed progress records for enrollments
+      const completedEnrollmentIds = progressRecords.filter(p => p.completed && !p.moduleId).map(p => p.enrollmentId);
+      // Map enrollmentId to courseId using certificates
+      this.certificates.forEach(cert => {
+        if (completedEnrollmentIds.includes(cert.id)) {
+          this.completedCourses.add(cert.courseId);
+        }
+      });
+    });
+  }
+
+  canDownloadCertificate(certificate: Certificate): boolean {
+    // Only allow download if the course is completed
+    return this.completedCourses.has(certificate.courseId);
   }
 
   switchTab(tab: string): void {
@@ -126,11 +153,15 @@ export class CertificateComponent implements OnInit {
           a.click();
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
+          this.notificationService.showSuccess('Certificate Downloaded', 'Your certificate has been downloaded successfully!');
         },
         error: (error) => {
           console.error('Error downloading certificate:', error);
+          this.notificationService.showError('Download Failed', 'Failed to download certificate. Please try again or contact support.');
         }
       });
+    } else {
+      this.notificationService.showError('No Certificate File', 'Certificate file not available for download.');
     }
   }
 

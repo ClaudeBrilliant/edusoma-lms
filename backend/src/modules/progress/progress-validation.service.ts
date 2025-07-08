@@ -220,15 +220,23 @@ export class ProgressValidationService {
     progress?: number,
     metadata?: any,
   ) {
+    // For quiz materials (which have IDs like "quiz-{quizId}"), 
+    // we don't store them in the Material table, so we can't reference them
+    // in UserActivity. We'll set materialId to null for quiz activities.
+    const actualMaterialId = materialId && materialId.startsWith('quiz-') ? null : materialId;
+    
     return this.prisma.userActivity.create({
       data: {
         userId,
         moduleId,
-        materialId,
+        materialId: actualMaterialId,
         activityType,
         duration,
         progress,
-        metadata,
+        metadata: {
+          ...metadata,
+          originalMaterialId: materialId, // Store the original ID in metadata for reference
+        },
       },
     });
   }
@@ -323,8 +331,8 @@ export class ProgressValidationService {
 
     const materialsAccessed = new Set(
       userActivity
-        .filter((activity: any) => activity.materialId)
-        .map((activity: any) => activity.materialId),
+        .filter((activity: any) => activity.materialId || (activity.metadata?.originalMaterialId && activity.metadata.originalMaterialId.startsWith('quiz-')))
+        .map((activity: any) => activity.materialId || activity.metadata?.originalMaterialId),
     ).size;
 
     const videosCompleted = videoProgress.filter(

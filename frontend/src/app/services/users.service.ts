@@ -4,18 +4,15 @@ import { Observable } from 'rxjs';
 
 export interface User {
   id: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
   role: 'STUDENT' | 'INSTRUCTOR' | 'ADMIN';
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-  joinDate: Date;
-  lastLogin: Date;
-  avatar: string;
+  isVerified: boolean;
+  createdAt: Date;
+  updatedAt: Date;
   totalCourses?: number;
   totalEnrollments?: number;
   totalRevenue?: number;
-  isVerified: boolean;
   phone?: string;
   bio?: string;
   location?: string;
