@@ -2,6 +2,13 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CoursesService, Course, CourseEnrollment } from '../../services/courses.service';
+import { ProgressService, CourseProgress } from '../../services/progress.service';
+import { AuthService } from '../../services/auth.service';
+import { Router, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
+import { forkJoin } from 'rxjs';
+import { CertificateService } from '../../services/certificate.service';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-mycourses',
@@ -19,21 +26,108 @@ export class Mycourses implements OnInit {
   selectedStatus = 'all';
   selectedProgress = 'all';
 
-  constructor(private coursesService: CoursesService) {}
+  constructor(
+    private coursesService: CoursesService,
+    private progressService: ProgressService,
+    private authService: AuthService,
+    private router: Router,
+    private certificateService: CertificateService,
+    private notificationService: NotificationService
+  ) {
+    // Auto-refresh on navigation to /mycourses
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd && event.url === '/mycourses')
+    ).subscribe(() => {
+      this.loadMyCourses();
+    });
+  }
 
   ngOnInit(): void {
     this.loadMyCourses();
   }
 
   loadMyCourses(): void {
-    // Using mock data for development
-    this.enrollments = this.coursesService.getMockEnrollments();
-    this.enrolledCourses = this.coursesService.getMockCourses().filter(course => 
-      this.enrollments.some(enrollment => 
-        enrollment.courseId === course.id && enrollment.status === 'APPROVED'
-      )
+    this.loading = true;
+    
+    this.coursesService.getEnrolledCourses().subscribe({
+      next: (coursesWithEnrollments: any[]) => {
+        // Extract courses and enrollments from the response
+        this.enrolledCourses = coursesWithEnrollments.map(courseWithEnrollment => ({
+          id: courseWithEnrollment.id,
+          title: courseWithEnrollment.title,
+          description: courseWithEnrollment.description,
+          instructorId: courseWithEnrollment.instructorId,
+          category: courseWithEnrollment.category,
+          difficulty: courseWithEnrollment.difficulty,
+          instructor: courseWithEnrollment.instructor,
+          createdAt: new Date(courseWithEnrollment.createdAt),
+          updatedAt: new Date(courseWithEnrollment.updatedAt),
+          _count: courseWithEnrollment._count
+        }));
+        
+        // Extract enrollments from the courses
+        this.enrollments = coursesWithEnrollments.flatMap(courseWithEnrollment => 
+          (courseWithEnrollment.enrollments || []).map((enrollment: any) => ({
+            id: enrollment.id,
+            courseId: enrollment.courseId,
+            studentId: enrollment.userId,
+            studentName: '',
+            studentEmail: '',
+            enrollmentDate: new Date(enrollment.enrolledAt),
+            status: 'APPROVED',
+            paymentStatus: 'PAID' as any,
+            amount: 0,
+            currency: 'USD',
+            progress: this.calculateProgress(enrollment.progress || []),
+            lastActivityDate: new Date(),
+            lastAccessedAt: new Date(),
+            certificateEarned: false,
+            isFavorite: false,
+            totalStudyTime: 0
+          }))
+        );
+        
+        // Load real progress data for each enrollment
+        this.loadProgressForEnrollments();
+      },
+      error: (error) => {
+        console.error('Error loading enrolled courses:', error);
+        this.loading = false;
+      }
+    });
+  }
+
+  loadProgressForEnrollments(): void {
+    if (this.enrollments.length === 0) {
+      this.loading = false;
+      return;
+    }
+    const progressObservables = this.enrollments.map(enrollment =>
+      this.progressService.getCourseProgress(enrollment.id)
     );
-    this.loading = false;
+    forkJoin(progressObservables).subscribe({
+      next: (progressResults: CourseProgress[]) => {
+        this.enrollments.forEach((enrollment, idx) => {
+          const progress = progressResults[idx];
+          enrollment.progress = progress.overallProgressPercentage;
+          if (progress.isCourseCompleted) {
+            enrollment.status = 'COMPLETED';
+            enrollment.certificateEarned = true;
+          }
+        });
+        this.loading = false;
+        },
+        error: (error) => {
+        console.error('Error loading progress for enrollments:', error);
+        this.loading = false;
+        }
+    });
+  }
+
+  private calculateProgress(progressArray: any[]): number {
+    if (!progressArray || progressArray.length === 0) return 0;
+    const completedModules = progressArray.filter((p: any) => p.completed).length;
+    return Math.round((completedModules / progressArray.length) * 100);
   }
 
   switchTab(tab: string): void {
@@ -47,7 +141,7 @@ export class Mycourses implements OnInit {
       filtered = filtered.filter(course => 
         course.title.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
         course.description.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        course.instructorName.toLowerCase().includes(this.searchTerm.toLowerCase())
+        (course.instructor?.name || '').toLowerCase().includes(this.searchTerm.toLowerCase())
       );
     }
 
@@ -152,14 +246,14 @@ export class Mycourses implements OnInit {
     }
   }
 
-  getLevelColor(level: string): string {
-    switch (level) {
-      case 'BEGINNER':
+  getDifficultyColor(difficultyName: string): string {
+    switch (difficultyName.toLowerCase()) {
+      case 'beginner':
         return 'text-green-500 bg-green-100';
-      case 'INTERMEDIATE':
-        return 'text-blue-500 bg-blue-100';
-      case 'ADVANCED':
-        return 'text-purple-500 bg-purple-100';
+      case 'intermediate':
+        return 'text-yellow-500 bg-yellow-100';
+      case 'advanced':
+        return 'text-red-500 bg-red-100';
       default:
         return 'text-gray-500 bg-gray-100';
     }
@@ -171,36 +265,6 @@ export class Mycourses implements OnInit {
       month: 'short',
       day: 'numeric'
     });
-  }
-
-  formatCurrency(amount: number, currency: string): string {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency
-    }).format(amount);
-  }
-
-  formatDurationHours(hours: number): string {
-    if (hours >= 24) {
-      const days = Math.floor(hours / 24);
-      const remainingHours = hours % 24;
-      return `${days}d ${remainingHours}h`;
-    }
-    return `${hours}h`;
-  }
-
-  getStarRating(rating: number): string[] {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      if (i <= rating) {
-        stars.push('fas fa-star text-yellow-400');
-      } else if (i - 0.5 <= rating) {
-        stars.push('fas fa-star-half-alt text-yellow-400');
-      } else {
-        stars.push('far fa-star text-gray-300');
-      }
-    }
-    return stars;
   }
 
   getProgressColor(progress: number): string {
@@ -225,9 +289,10 @@ export class Mycourses implements OnInit {
     const enrollment = this.getEnrollmentByCourseId(course.id);
     if (!enrollment || enrollment.progress === 100) return 'Completed';
     
-    const totalMinutes = course.duration * 60;
-    const completedMinutes = (totalMinutes * enrollment.progress) / 100;
-    const remainingMinutes = totalMinutes - completedMinutes;
+    // Since backend doesn't have duration field, return estimated time
+    const estimatedTotalMinutes = 600; // 10 hours default
+    const completedMinutes = (estimatedTotalMinutes * enrollment.progress) / 100;
+    const remainingMinutes = estimatedTotalMinutes - completedMinutes;
     
     if (remainingMinutes < 60) {
       return `${Math.ceil(remainingMinutes)} minutes left`;
@@ -276,13 +341,16 @@ export class Mycourses implements OnInit {
   }
 
   continueCourse(course: Course): void {
-    // TODO: Navigate to course content
-    console.log('Continuing course:', course.id);
+    const enrollment = this.getEnrollmentByCourseId(course.id);
+    if (enrollment) {
+      // Navigate to course content with enrollment ID
+      window.location.href = `/content/${course.id}/${enrollment.id}`;
+    }
   }
 
   viewCourse(course: Course): void {
-    // TODO: Navigate to course details
-    console.log('Viewing course:', course.id);
+    // Navigate to course details
+    window.location.href = `/courses/${course.id}`;
   }
 
   markAsFavorite(course: Course): void {
@@ -297,8 +365,41 @@ export class Mycourses implements OnInit {
   downloadCertificate(course: Course): void {
     const enrollment = this.getEnrollmentByCourseId(course.id);
     if (enrollment && enrollment.certificateEarned) {
-      // TODO: Download certificate
-      console.log('Downloading certificate for course:', course.id);
+      // First, get the certificate for this course
+      this.certificateService.getMyCertificates().subscribe({
+        next: (certificates) => {
+          const certificate = certificates.find(cert => cert.courseId === course.id);
+          if (certificate && certificate.url) {
+            // Extract filename from URL
+            const fileName = certificate.url.split('/').pop() || certificate.certificateNumber;
+            this.certificateService.downloadCertificate(fileName).subscribe({
+              next: (blob) => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${certificate.certificateNumber}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                this.notificationService.showSuccess('Certificate Downloaded', 'Your certificate has been downloaded successfully!');
+              },
+              error: (error) => {
+                console.error('Error downloading certificate:', error);
+                this.notificationService.showError('Download Failed', 'Failed to download certificate. Please try again.');
+              }
+            });
+          } else {
+            this.notificationService.showError('Certificate Not Found', 'Certificate not found for this course.');
+          }
+        },
+        error: (error) => {
+          console.error('Error fetching certificates:', error);
+          this.notificationService.showError('Error', 'Failed to fetch certificate information.');
+        }
+      });
+    } else {
+      this.notificationService.showError('No Certificate', 'No certificate available for this course yet.');
     }
   }
 

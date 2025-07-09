@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AssignmentsService, Assignment, Question, Submission, AssignmentStats, StudentAssignmentView } from '../../services/assignments.service';
+import { AssignmentsService, Assignment, AssignmentSubmission, AssignmentStats, AssignmentFilters } from '../../services/assignments.service';
 
 @Component({
   selector: 'app-assignments',
@@ -12,12 +12,12 @@ import { AssignmentsService, Assignment, Question, Submission, AssignmentStats, 
 })
 export class AssignmentsComponent implements OnInit {
   assignments: Assignment[] = [];
-  studentAssignments: StudentAssignmentView[] = [];
+  submissions: AssignmentSubmission[] = [];
   stats: AssignmentStats | null = null;
   loading = true;
   selectedTab = 'instructor';
   selectedAssignment: Assignment | null = null;
-  selectedSubmission: Submission | null = null;
+  selectedSubmission: AssignmentSubmission | null = null;
   isCreatingAssignment = false;
   isEditingAssignment = false;
   isTakingAssignment = false;
@@ -36,9 +36,10 @@ export class AssignmentsComponent implements OnInit {
     description: '',
     courseId: '',
     dueDate: '',
-    totalPoints: 100,
-    timeLimit: 60,
-    isPublished: false
+    points: 100,
+    status: 'DRAFT' as 'DRAFT' | 'PUBLISHED' | 'SUBMITTED' | 'GRADED' | 'LATE',
+    submissionType: 'FILE' as 'FILE' | 'TEXT' | 'LINK' | 'MULTIPLE',
+    instructions: ''
   };
 
   // Form data for questions
@@ -69,11 +70,30 @@ export class AssignmentsComponent implements OnInit {
   }
 
   loadAssignmentData(): void {
-    // Using mock data for development
-    this.assignments = this.assignmentsService.getMockAssignments();
-    this.studentAssignments = this.assignmentsService.getMockStudentAssignmentViews();
-    this.stats = this.assignmentsService.getMockAssignmentStats();
-    this.loading = false;
+    this.loading = true;
+    
+    // Load assignments
+    this.assignmentsService.getAssignments().subscribe({
+      next: (assignments) => {
+        this.assignments = assignments;
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('Error loading assignments:', error);
+        this.assignments = [];
+        this.loading = false;
+      }
+    });
+
+    // Load assignment stats
+    this.assignmentsService.getAssignmentStats().subscribe({
+      next: (stats) => {
+        this.stats = stats;
+      },
+      error: (error) => {
+        console.error('Error loading assignment stats:', error);
+      }
+    });
   }
 
   switchTab(tab: string): void {
@@ -90,6 +110,11 @@ export class AssignmentsComponent implements OnInit {
     this.selectedSubmission = null;
     this.currentQuestionIndex = 0;
     this.studentAnswers = {};
+  }
+
+  onStatusChange(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.assignmentForm.status = target.checked ? 'PUBLISHED' : 'DRAFT';
   }
 
   getStatusColor(status: string): string {
@@ -176,9 +201,10 @@ export class AssignmentsComponent implements OnInit {
       description: assignment.description,
       courseId: assignment.courseId,
       dueDate: assignment.dueDate.toISOString().split('T')[0],
-      totalPoints: assignment.totalPoints,
-      timeLimit: assignment.timeLimit || 60,
-      isPublished: assignment.isPublished
+      points: assignment.points,
+      status: assignment.status,
+      submissionType: assignment.submissionType,
+      instructions: assignment.instructions
     };
   }
 
@@ -216,11 +242,6 @@ export class AssignmentsComponent implements OnInit {
     this.isTakingAssignment = true;
     this.currentQuestionIndex = 0;
     this.studentAnswers = {};
-    
-    if (assignment.timeLimit) {
-      this.timeRemaining = assignment.timeLimit;
-      this.startTimer();
-    }
   }
 
   startTimer(): void {
@@ -233,17 +254,9 @@ export class AssignmentsComponent implements OnInit {
     }, 60000); // Update every minute
   }
 
-  submitAssignment(): void {
-    if (this.timerInterval) {
-      clearInterval(this.timerInterval);
-    }
-    
-    // TODO: Implement assignment submission
-    console.log('Submitting assignment with answers:', this.studentAnswers);
-    this.isTakingAssignment = false;
-  }
+  // Remove duplicate method - this is handled by the new submitAssignment method below
 
-  gradeSubmission(submission: Submission): void {
+  gradeSubmission(submission: AssignmentSubmission): void {
     this.selectedSubmission = submission;
     this.isGradingSubmission = true;
   }
@@ -254,7 +267,7 @@ export class AssignmentsComponent implements OnInit {
     this.isGradingSubmission = false;
   }
 
-  autoGradeSubmission(submission: Submission): void {
+  autoGradeSubmission(submission: AssignmentSubmission): void {
     // TODO: Implement auto-grading
     console.log('Auto-grading submission:', submission.id);
   }
@@ -264,32 +277,25 @@ export class AssignmentsComponent implements OnInit {
     console.log('Adding question:', this.questionForm);
   }
 
-  editQuestion(question: Question): void {
-    // TODO: Implement question editing
-    console.log('Editing question:', question.id);
-  }
-
-  deleteQuestion(question: Question): void {
-    if (confirm('Are you sure you want to delete this question?')) {
-      // TODO: Implement question deletion
-      console.log('Deleting question:', question.id);
+  // Assignment submission methods
+  submitAssignment(): void {
+    if (this.selectedAssignment) {
+      const submission = {
+        text: this.studentAnswers['text'],
+        link: this.studentAnswers['link'],
+        files: [] // TODO: Handle file uploads
+      };
+      
+      this.assignmentsService.submitAssignment(this.selectedAssignment.id, submission).subscribe({
+        next: (result) => {
+          console.log('Assignment submitted:', result);
+          this.resetForms();
+        },
+        error: (error) => {
+          console.error('Error submitting assignment:', error);
+        }
+      });
     }
-  }
-
-  nextQuestion(): void {
-    if (this.selectedAssignment && this.currentQuestionIndex < this.selectedAssignment.questions.length - 1) {
-      this.currentQuestionIndex++;
-    }
-  }
-
-  previousQuestion(): void {
-    if (this.currentQuestionIndex > 0) {
-      this.currentQuestionIndex--;
-    }
-  }
-
-  selectAnswer(questionId: string, answer: any): void {
-    this.studentAnswers[questionId] = answer;
   }
 
   getFilteredAssignments(): Assignment[] {
@@ -305,8 +311,8 @@ export class AssignmentsComponent implements OnInit {
 
     if (this.selectedStatus !== 'all') {
       filtered = filtered.filter(assignment => {
-        if (this.selectedStatus === 'published') return assignment.isPublished;
-        if (this.selectedStatus === 'draft') return !assignment.isPublished;
+        if (this.selectedStatus === 'published') return assignment.status === 'PUBLISHED';
+        if (this.selectedStatus === 'draft') return assignment.status === 'DRAFT';
         return true;
       });
     }
@@ -318,59 +324,22 @@ export class AssignmentsComponent implements OnInit {
     return filtered;
   }
 
-  getFilteredStudentAssignments(): StudentAssignmentView[] {
-    let filtered = this.studentAssignments;
-
-    if (this.searchTerm) {
-      filtered = filtered.filter(view => 
-        view.assignment.title.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        view.assignment.courseTitle.toLowerCase().includes(this.searchTerm.toLowerCase())
-      );
-    }
-
-    if (this.selectedStatus !== 'all') {
-      filtered = filtered.filter(view => {
-        if (this.selectedStatus === 'submitted') return view.isSubmitted;
-        if (this.selectedStatus === 'graded') return view.isGraded;
-        if (this.selectedStatus === 'pending') return !view.isSubmitted;
-        return true;
-      });
-    }
-
-    return filtered;
-  }
-
   getPublishedAssignments(): Assignment[] {
-    return this.assignments.filter(assignment => assignment.isPublished);
+    return this.assignments.filter(assignment => assignment.status === 'PUBLISHED');
   }
 
   getDraftAssignments(): Assignment[] {
-    return this.assignments.filter(assignment => !assignment.isPublished);
+    return this.assignments.filter(assignment => assignment.status === 'DRAFT');
   }
 
-  getSubmissionsForAssignment(assignmentId: string): Submission[] {
-    const assignment = this.assignments.find(a => a.id === assignmentId);
-    return assignment?.submissions || [];
+  getSubmissionsForAssignment(assignmentId: string): AssignmentSubmission[] {
+    // TODO: Load submissions from service
+    return [];
   }
 
-  getPendingGrading(): Submission[] {
-    return this.assignments
-      .flatMap(assignment => assignment.submissions)
-      .filter(submission => submission.status === 'SUBMITTED');
-  }
-
-  getCurrentQuestion(): Question | null {
-    if (!this.selectedAssignment) return null;
-    return this.selectedAssignment.questions[this.currentQuestionIndex] || null;
-  }
-
-  getQuestionProgress(): number {
-    if (!this.selectedAssignment) return 0;
-    return ((this.currentQuestionIndex + 1) / this.selectedAssignment.questions.length) * 100;
-  }
-
-  isQuestionAnswered(questionId: string): boolean {
-    return this.studentAnswers.hasOwnProperty(questionId);
+  getPendingGrading(): AssignmentSubmission[] {
+    // TODO: Load pending submissions from service
+    return [];
   }
 
   resetAssignmentForm(): void {
@@ -379,9 +348,10 @@ export class AssignmentsComponent implements OnInit {
       description: '',
       courseId: '',
       dueDate: '',
-      totalPoints: 100,
-      timeLimit: 60,
-      isPublished: false
+      points: 100,
+      status: 'DRAFT' as 'DRAFT' | 'PUBLISHED' | 'SUBMITTED' | 'GRADED' | 'LATE',
+      submissionType: 'FILE' as 'FILE' | 'TEXT' | 'LINK' | 'MULTIPLE',
+      instructions: ''
     };
   }
 
@@ -418,7 +388,7 @@ export class AssignmentsComponent implements OnInit {
     return this.assignments.find(assignment => assignment.id === assignmentId);
   }
 
-  viewSubmission(submission: Submission): void {
+  viewSubmission(submission: AssignmentSubmission): void {
     this.selectedSubmission = submission;
     // TODO: Implement submission viewing
     console.log('Viewing submission:', submission.id);

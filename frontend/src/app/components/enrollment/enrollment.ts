@@ -36,10 +36,39 @@ export class EnrollmentComponent implements OnInit {
 
   loadEnrollmentData(): void {
     // Using mock data for development
-    this.enrollments = this.enrollmentService.getMockEnrollments();
-    this.applications = this.enrollmentService.getMockApplications();
-    this.stats = this.enrollmentService.getMockEnrollmentStats();
-    this.courseEnrollmentData = this.enrollmentService.getMockCourseEnrollmentData();
+    this.loading = true;
+    
+    // Load enrollments
+    this.enrollmentService.getEnrollments().subscribe({
+      next: (enrollments) => {
+        this.enrollments = enrollments;
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('Error loading enrollments:', error);
+        this.loading = false;
+      }
+    });
+
+    // Load enrollment stats
+    this.enrollmentService.getEnrollmentStats().subscribe({
+      next: (stats) => {
+        this.stats = stats;
+      },
+      error: (error) => {
+        console.error('Error loading enrollment stats:', error);
+      }
+    });
+
+    // Load course enrollment data
+    this.enrollmentService.getCourseEnrollmentData('course1').subscribe({
+      next: (data) => {
+        this.courseEnrollmentData = [data];
+      },
+      error: (error) => {
+        console.error('Error loading course enrollment data:', error);
+      }
+    });
     this.loading = false;
   }
 

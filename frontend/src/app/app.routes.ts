@@ -8,6 +8,7 @@ import { EnrollmentComponent } from './components/enrollment/enrollment';
 import { CoursesComponent } from './components/courses/courses';
 import { AuthGuard } from './core/guards/auth.guard';
 import { RoleGuard } from './core/guards/role.guard';
+import { DiscussionsComponent } from './components/discussions/discussions';
 
 export const routes: Routes = [
   {
@@ -31,10 +32,8 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/register/register').then(m => m.Register)
   },
   {
-    path: 'student-dashboard',
-    loadComponent: () => import('./pages/student-dashboard/student-dashboard').then(m => m.StudentDashboard),
-    canActivate: [AuthGuard],
-    data: { roles: ['student', 'instructor', 'admin'] }
+    path: 'verification',
+    loadComponent: () => import('./pages/verification/verification').then(m => m.VerificationComponent)
   },
   {
     path: 'instructor-dashboard',
@@ -80,7 +79,8 @@ export const routes: Routes = [
   },
   {
     path: 'courses',
-    component: CoursesComponent
+    component: CoursesComponent,
+    // No guard here so all users can see all courses
   },
   {
     path: 'mycourses',
@@ -94,13 +94,41 @@ export const routes: Routes = [
     data: { roles: ['admin'] }
   },
   {
+    path: 'users/:id',
+    loadComponent: () => import('./components/users/user-detail').then(m => m.UserDetail),
+  },
+  {
+    path: 'users/:id/edit',
+    loadComponent: () => import('./components/users/user-edit').then(m => m.UserEdit),
+  },
+  {
     path: 'content',
     loadComponent: () => import('./components/content/content').then(m => m.Content),
     canActivate: [AuthGuard]
   },
   {
+    path: 'content/:courseId/:enrollmentId',
+    loadComponent: () => import('./components/content/content').then(m => m.Content),
+    canActivate: [AuthGuard]
+  },
+  {
+    path: 'course-editor/:courseId',
+    loadComponent: () => import('./pages/course-editor/course-editor').then(m => m.CourseEditor),
+    canActivate: [AuthGuard]
+  },
+  {
     path: 'unauthorized',
     loadComponent: () => import('./pages/unauthorized/unauthorized').then(m => m.Unauthorized)
+  },
+  {
+    path: 'discussions',
+    component: DiscussionsComponent,
+    canActivate: [AuthGuard]
+  },
+  {
+    path: 'courses/:courseId/discussions',
+    component: DiscussionsComponent,
+    canActivate: [AuthGuard]
   },
   {
     path: '',

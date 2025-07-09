@@ -1,9 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule, Router } from '@angular/router';
-import { Navbar } from '../navbar/navbar';
+import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { Footer } from '../footer/footer';
+import { AuthService, LoginCredentials } from '../../services/auth.service';
 
 interface LoginForm {
   email: string;
@@ -14,7 +14,7 @@ interface LoginForm {
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, Navbar, Footer],
+  imports: [CommonModule, FormsModule, RouterModule, Footer],
   templateUrl: './login.html',
   styleUrl: './login.css'
 })
@@ -34,7 +34,22 @@ export class Login {
   emailError = '';
   passwordError = '';
 
-  constructor(private router: Router) {}
+  returnUrl: string = '/student-dashboard';
+  courseId: string | null = null;
+
+  constructor(
+    private router: Router,
+    private route: ActivatedRoute,
+    private authService: AuthService
+  ) {}
+
+  ngOnInit(): void {
+    // Get query parameters
+    this.route.queryParams.subscribe(params => {
+      this.returnUrl = params['returnUrl'] || '/student-dashboard';
+      this.courseId = params['courseId'] || null;
+    });
+  }
 
   onSubmit(): void {
     if (this.isSubmitting) return;
@@ -51,25 +66,68 @@ export class Login {
 
     this.isSubmitting = true;
 
-    // Simulate API call
-    setTimeout(() => {
-      this.isSubmitting = false;
-      
-      // Mock authentication logic
-      if (this.loginForm.email === 'demo@example.com' && this.loginForm.password === 'password') {
+    const credentials: LoginCredentials = {
+      email: this.loginForm.email,
+      password: this.loginForm.password,
+      rememberMe: this.loginForm.rememberMe
+    };
+
+    this.authService.login(credentials).subscribe({
+      next: (response) => {
+        this.isSubmitting = false;
         this.loginSuccess = true;
         this.loginError = '';
         
-        // Simulate redirect after successful login
-        setTimeout(() => {
-          // Redirect to student dashboard after successful login
-          this.router.navigate(['/student-dashboard']);
-        }, 1500);
-      } else {
-        this.loginError = 'Invalid email or password. Please try again.';
+        console.log('Login successful:', response);
+        
+        // Redirect to return URL or appropriate dashboard based on user role
+        const user = this.authService.currentUser;
+        if (user && user.role) {
+          const role = user.role.toLowerCase();
+          let redirectPath = '/home';
+          switch (role) {
+            case 'admin':
+              redirectPath = '/users';
+              break;
+            case 'instructor':
+              redirectPath = '/instructor-dashboard';
+              break;
+            case 'student':
+            default:
+              redirectPath = '/home';
+              break;
+          }
+          console.log('[Login] Redirecting to:', redirectPath);
+          this.router.navigate([redirectPath]);
+        } else {
+          this.router.navigate(['/home']);
+        }
+      },
+      error: (error) => {
+        this.isSubmitting = false;
+        this.loginError = error.message || 'Login failed. Please try again.';
         this.loginSuccess = false;
+        console.error('Login error:', error);
+        
+        // Check if error is related to unverified email
+        if (error.message && (error.message.includes('verify') || error.message.includes('unverified'))) {
+          // Store email for verification page
+          localStorage.setItem('pendingVerificationEmail', this.loginForm.email);
+          
+          // Show message and offer to go to verification page
+          setTimeout(() => {
+            if (confirm('Your email needs to be verified. Would you like to go to the verification page?')) {
+              this.router.navigate(['/verification'], { 
+                queryParams: { 
+                  email: this.loginForm.email,
+                  message: 'Please verify your email to continue.' 
+                } 
+              });
+            }
+          }, 1000);
+        }
       }
-    }, 2000);
+    });
   }
 
   validateForm(): boolean {

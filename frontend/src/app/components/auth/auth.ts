@@ -26,11 +26,11 @@ export class AuthComponent implements OnInit {
   
   // Register form
   registerForm: RegisterData = {
-    firstName: '',
-    lastName: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
+    role: 'STUDENT',
     agreeToTerms: false,
     agreeToMarketing: false
   };
@@ -241,13 +241,8 @@ export class AuthComponent implements OnInit {
   private validateRegisterForm(): boolean {
     let isValid = true;
     
-    if (!this.registerForm.firstName) {
-      this.registerErrors['firstName'] = 'First name is required';
-      isValid = false;
-    }
-    
-    if (!this.registerForm.lastName) {
-      this.registerErrors['lastName'] = 'Last name is required';
+    if (!this.registerForm.name) {
+      this.registerErrors['name'] = 'Name is required';
       isValid = false;
     }
     

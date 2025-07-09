@@ -10,9 +10,6 @@
           <button (click)="createNewCourse()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors btn-hover">
             <i class="fas fa-plus mr-2"></i>New Course
           </button>
-          <button (click)="scheduleClass()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors btn-hover">
-            <i class="fas fa-calendar mr-2"></i>Schedule Class
-          </button>
         </div>
       </div>
     </div>
@@ -37,7 +34,7 @@
             </div>
             <div class="ml-4">
               <p class="text-blue-300 text-sm font-medium">Total Courses</p>
-              <p class="text-2xl font-bold text-white">{{ analytics?.totalCourses || 0 }}</p>
+              <p class="text-2xl font-bold text-white">{{ getTotalCourses() }}</p>
             </div>
           </div>
         </div>
@@ -50,7 +47,7 @@
             </div>
             <div class="ml-4">
               <p class="text-blue-300 text-sm font-medium">Total Students</p>
-              <p class="text-2xl font-bold text-white">{{ analytics?.totalStudents || 0 }}</p>
+              <p class="text-2xl font-bold text-white">{{ getTotalStudents() }}</p>
             </div>
           </div>
         </div>
@@ -63,7 +60,7 @@
             </div>
             <div class="ml-4">
               <p class="text-blue-300 text-sm font-medium">Total Classes</p>
-              <p class="text-2xl font-bold text-white">{{ analytics?.totalClasses || 0 }}</p>
+              <p class="text-2xl font-bold text-white">{{ getTotalClasses() }}</p>
             </div>
           </div>
         </div>
@@ -76,7 +73,7 @@
             </div>
             <div class="ml-4">
               <p class="text-blue-300 text-sm font-medium">Avg Rating</p>
-              <p class="text-2xl font-bold text-white">{{ analytics?.averageRating || 0 }}/5</p>
+              <p class="text-2xl font-bold text-white">{{ getAverageRating() }}/5</p>
             </div>
           </div>
         </div>
@@ -96,8 +93,8 @@
                 <p class="text-blue-300">No courses yet. Create your first course!</p>
               </div>
               
-                             <div *ngFor="let course of courses" class="mb-6 last:mb-0">
-                 <div class="bg-blue-800 rounded-lg p-4 border border-blue-700 hover:border-blue-600 transition-colors card-hover">
+              <div *ngFor="let course of courses" class="mb-6 last:mb-0">
+                <div class="bg-blue-800 rounded-lg p-4 border border-blue-700 hover:border-blue-600 transition-colors card-hover">
                   <div class="flex justify-between items-start">
                     <div class="flex-1">
                       <h3 class="text-lg font-semibold text-white mb-2">{{ course.title }}</h3>
@@ -109,14 +106,20 @@
                         </span>
                       </div>
                     </div>
-                                         <div class="flex space-x-2">
-                       <button (click)="editCourse(course.id)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
-                         <i class="fas fa-edit mr-1"></i>Edit
-                       </button>
-                       <button (click)="viewCourse(course.id)" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors">
-                         <i class="fas fa-eye mr-1"></i>View
-                       </button>
-                     </div>
+                    <div class="flex flex-wrap gap-2">
+                      <button (click)="addModules(course.id)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-book mr-1"></i>Add Modules
+                      </button>
+                      <button (click)="addQuizzes(course.id)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-question-circle mr-1"></i>Add Quizzes
+                      </button>
+                      <button (click)="editCourse(course.id)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-edit mr-1"></i>Edit Course
+                      </button>
+                      <!-- <button (click)="viewCourse(course.id)" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                        <i class="fas fa-eye mr-1"></i>View
+                      </button> -->
+                    </div>
                   </div>
                 </div>
               </div>
@@ -132,11 +135,14 @@
               <h2 class="text-xl font-semibold text-white">Quick Actions</h2>
             </div>
             <div class="p-6 space-y-3">
-              <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+              <button (click)="createNewCourse()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
                 <i class="fas fa-plus mr-3"></i>Create New Course
               </button>
-              <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
-                <i class="fas fa-calendar-plus mr-3"></i>Schedule Live Class
+              <button *ngIf="courses.length > 0" (click)="quickAddModule()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                <i class="fas fa-book mr-3"></i>Quick Add Module
+              </button>
+              <button *ngIf="courses.length > 0" (click)="quickAddQuiz()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
+                <i class="fas fa-question-circle mr-3"></i>Quick Add Quiz
               </button>
               <button class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors text-left">
                 <i class="fas fa-chart-bar mr-3"></i>View Analytics
@@ -147,38 +153,6 @@
             </div>
           </div>
 
-          <!-- Recent Activity -->
-          <div class="bg-blue-900 rounded-lg border border-blue-800">
-            <div class="px-6 py-4 border-b border-blue-800">
-              <h2 class="text-xl font-semibold text-white">Recent Activity</h2>
-            </div>
-            <div class="p-6">
-              <div class="space-y-4">
-                <div class="flex items-start space-x-3">
-                  <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                  <div>
-                    <p class="text-white text-sm">New student enrolled in "Web Development"</p>
-                    <p class="text-blue-400 text-xs">2 hours ago</p>
-                  </div>
-                </div>
-                <div class="flex items-start space-x-3">
-                  <div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                  <div>
-                    <p class="text-white text-sm">Live class scheduled for tomorrow</p>
-                    <p class="text-blue-400 text-xs">4 hours ago</p>
-                  </div>
-                </div>
-                <div class="flex items-start space-x-3">
-                  <div class="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
-                  <div>
-                    <p class="text-white text-sm">Course "React Development" updated</p>
-                    <p class="text-blue-400 text-xs">1 day ago</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- Recent Enrollments -->
           <div class="bg-blue-900 rounded-lg border border-blue-800">
             <div class="px-6 py-4 border-b border-blue-800">
@@ -186,8 +160,33 @@
             </div>
             <div class="p-6">
               <div class="text-center">
-                <p class="text-3xl font-bold text-white">{{ analytics?.recentEnrollments || 0 }}</p>
+                <p class="text-3xl font-bold text-white">{{ getRecentEnrollments() }}</p>
                 <p class="text-blue-300 text-sm">This week</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dashboard Stats -->
+          <div class="bg-blue-900 rounded-lg border border-blue-800">
+            <div class="px-6 py-4 border-b border-blue-800">
+              <h2 class="text-xl font-semibold text-white">Dashboard Stats</h2>
+            </div>
+            <div class="p-6 space-y-4">
+              <div class="flex justify-between items-center">
+                <span class="text-blue-300">Total Courses:</span>
+                <span class="text-white font-semibold">{{ getTotalCourses() }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-blue-300">Total Students:</span>
+                <span class="text-white font-semibold">{{ getTotalStudents() }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-blue-300">Average Rating:</span>
+                <span class="text-white font-semibold">{{ getAverageRating() }}/5</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-blue-300">Recent Enrollments:</span>
+                <span class="text-white font-semibold">{{ getRecentEnrollments() }}</span>
               </div>
             </div>
           </div>
@@ -195,4 +194,101 @@
       </div>
     </div>
   </main>
+
+  <!-- Create Course Modal -->
+  <div *ngIf="showCreateCourseModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-blue-900 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-white">Create New Course</h2>
+        <button (click)="closeCreateCourseModal()" class="text-blue-300 hover:text-white">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+
+      <form (ngSubmit)="submitCreateCourse()" class="space-y-6">
+        <!-- Basic Information -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-blue-300 text-sm font-medium mb-2">Course Title *</label>
+            <input 
+              type="text" 
+              [(ngModel)]="newCourse.title" 
+              name="title"
+              class="w-full bg-blue-800 border border-blue-700 rounded-lg px-3 py-2 text-white placeholder-blue-400 focus:outline-none focus:border-blue-500"
+              placeholder="Enter course title"
+              required
+            >
+          </div>
+
+          <div>
+            <label class="block text-blue-300 text-sm font-medium mb-2">Category *</label>
+            <select 
+              [(ngModel)]="newCourse.categoryId" 
+              name="categoryId"
+              class="w-full bg-blue-800 border border-blue-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              required
+            >
+              <option value="">Select a category</option>
+              <option *ngFor="let category of categories" [value]="category.id">
+                {{ category.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-blue-300 text-sm font-medium mb-2">Difficulty Level *</label>
+          <select 
+            [(ngModel)]="newCourse.difficultyId" 
+            name="difficultyId"
+            class="w-full bg-blue-800 border border-blue-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+            required
+          >
+            <option value="">Select difficulty level</option>
+            <option *ngFor="let difficulty of difficulties" [value]="difficulty.id">
+              {{ difficulty.name }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="block text-blue-300 text-sm font-medium mb-2">Description *</label>
+          <textarea 
+            [(ngModel)]="newCourse.description" 
+            name="description"
+            rows="4"
+            class="w-full bg-blue-800 border border-blue-700 rounded-lg px-3 py-2 text-white placeholder-blue-400 focus:outline-none focus:border-blue-500"
+            placeholder="Enter course description"
+            required
+          ></textarea>
+        </div>
+
+
+
+        <!-- Form Actions -->
+        <div class="flex justify-end space-x-4 pt-6 border-t border-blue-700">
+          <button 
+            type="button" 
+            (click)="closeCreateCourseModal()"
+            class="px-4 py-2 text-blue-300 hover:text-white border border-blue-700 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            [disabled]="creatingCourse"
+            class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span *ngIf="!creatingCourse">
+              <i class="fas fa-plus mr-2"></i>Create Course
+            </span>
+            <span *ngIf="creatingCourse">
+              <i class="fas fa-spinner fa-spin mr-2"></i>Creating...
+            </span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>

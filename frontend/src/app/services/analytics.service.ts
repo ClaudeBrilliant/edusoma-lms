@@ -1,121 +1,173 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+
+// Environment configuration
+const environment = {
+  apiUrl: 'http://localhost:3000/api/v1'
+};
+
+export interface DashboardAnalytics {
+  totalStudents: number;
+  totalCourses: number;
+  averageCompletionRate: number;
+  monthlyGrowth: number;
+  topPerformingCourses: CourseAnalytics[];
+  recentActivity: ActivityData[];
+}
 
 export interface CourseAnalytics {
   courseId: string;
   courseTitle: string;
   totalEnrollments: number;
   completionRate: number;
-  averageRating: number;
-  totalRevenue: number;
   activeStudents: number;
 }
 
-export interface StudentAnalytics {
-  studentId: string;
-  studentName: string;
-  totalCourses: number;
-  completedCourses: number;
-  averageScore: number;
-  lastActive: Date;
-  certificatesEarned: number;
-}
-
-export interface RevenueAnalytics {
-  period: string;
-  revenue: number;
-  enrollments: number;
-  growth: number;
+export interface ActivityData {
+  date: string;
+  activeUsers: number;
+  courseViews: number;
+  timeSpent: number;
+  quizAttempts: number;
 }
 
 export interface EngagementAnalytics {
   date: string;
   activeUsers: number;
   courseViews: number;
-  timeSpent: number; // in minutes
+  timeSpent: number;
   quizAttempts: number;
-}
-
-export interface DashboardAnalytics {
-  totalRevenue: number;
-  totalStudents: number;
-  totalCourses: number;
-  averageCompletionRate: number;
-  monthlyGrowth: number;
-  topPerformingCourses: CourseAnalytics[];
-  recentActivity: EngagementAnalytics[];
-  revenueTrend: RevenueAnalytics[];
-}
-
-export interface QuizAnalytics {
-  quizId: string;
-  quizTitle: string;
-  totalAttempts: number;
-  averageScore: number;
-  passRate: number;
-  questionAnalytics: QuestionAnalytics[];
-}
-
-export interface QuestionAnalytics {
-  questionId: string;
-  questionText: string;
-  correctAnswers: number;
-  totalAttempts: number;
-  difficulty: 'easy' | 'medium' | 'hard';
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class AnalyticsService {
-  private apiUrl = 'http://localhost:3000/api'; // Adjust based on your backend URL
+  private apiUrl = `${environment.apiUrl}/analytics`;
 
-  constructor(private http: HttpClient) { }
+  constructor(private http: HttpClient) {}
 
-  // Dashboard Analytics
+  // Get dashboard analytics
   getDashboardAnalytics(): Observable<DashboardAnalytics> {
-    return this.http.get<DashboardAnalytics>(`${this.apiUrl}/analytics/dashboard`);
+    return this.http.get<any>(`${this.apiUrl}/dashboard`).pipe(
+      map(data => this.mapDashboardAnalytics(data)),
+      catchError(error => {
+        console.error('Error fetching dashboard analytics:', error);
+        return of(this.getMockDashboardAnalytics());
+      })
+    );
   }
 
-  // Course Analytics
-  getCourseAnalytics(courseId?: string): Observable<CourseAnalytics[]> {
-    const url = courseId 
-      ? `${this.apiUrl}/analytics/courses/${courseId}`
-      : `${this.apiUrl}/analytics/courses`;
-    return this.http.get<CourseAnalytics[]>(url);
+  // Get course analytics
+  getCourseAnalytics(): Observable<CourseAnalytics[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/courses`).pipe(
+      map(courses => courses.map(course => this.mapCourseAnalytics(course))),
+      catchError(error => {
+        console.error('Error fetching course analytics:', error);
+        return of(this.getMockCourseAnalytics());
+      })
+    );
   }
 
-  // Student Analytics
-  getStudentAnalytics(studentId?: string): Observable<StudentAnalytics[]> {
-    const url = studentId 
-      ? `${this.apiUrl}/analytics/students/${studentId}`
-      : `${this.apiUrl}/analytics/students`;
-    return this.http.get<StudentAnalytics[]>(url);
+  // Get engagement analytics
+  getEngagementAnalytics(): Observable<EngagementAnalytics[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/engagement`).pipe(
+      map(data => data.map(item => this.mapEngagementAnalytics(item))),
+      catchError(error => {
+        console.error('Error fetching engagement analytics:', error);
+        return of(this.getMockEngagementAnalytics());
+      })
+    );
   }
 
-  // Revenue Analytics
-  getRevenueAnalytics(period: string = 'monthly'): Observable<RevenueAnalytics[]> {
-    return this.http.get<RevenueAnalytics[]>(`${this.apiUrl}/analytics/revenue?period=${period}`);
+  // Get analytics for specific course
+  getCourseAnalyticsById(courseId: string): Observable<CourseAnalytics> {
+    return this.http.get<any>(`${this.apiUrl}/courses/${courseId}`).pipe(
+      map(course => this.mapCourseAnalytics(course)),
+      catchError(error => {
+        console.error('Error fetching course analytics:', error);
+        throw error;
+      })
+    );
   }
 
-  // Engagement Analytics
-  getEngagementAnalytics(days: number = 30): Observable<EngagementAnalytics[]> {
-    return this.http.get<EngagementAnalytics[]>(`${this.apiUrl}/analytics/engagement?days=${days}`);
+  // Get user analytics
+  getUserAnalytics(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/users`).pipe(
+      catchError(error => {
+        console.error('Error fetching user analytics:', error);
+        return of({});
+      })
+    );
   }
 
-  // Quiz Analytics
-  getQuizAnalytics(quizId?: string): Observable<QuizAnalytics[]> {
-    const url = quizId 
-      ? `${this.apiUrl}/analytics/quizzes/${quizId}`
-      : `${this.apiUrl}/analytics/quizzes`;
-    return this.http.get<QuizAnalytics[]>(url);
+  // Get revenue analytics
+  getRevenueAnalytics(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/revenue`).pipe(
+      map(data => data.map(item => this.mapRevenueData(item))),
+      catchError(error => {
+        console.error('Error fetching revenue analytics:', error);
+        return of([]);
+      })
+    );
   }
 
-  // Mock data for development
+  // Helper methods to map backend data to frontend interfaces
+  private mapDashboardAnalytics(data: any): DashboardAnalytics {
+    return {
+      totalStudents: data.totalStudents || 0,
+      totalCourses: data.totalCourses || 0,
+      averageCompletionRate: data.averageCompletionRate || 0,
+      monthlyGrowth: data.monthlyGrowth || 0,
+      topPerformingCourses: (data.topPerformingCourses || []).map((course: any) => this.mapCourseAnalytics(course)),
+      recentActivity: (data.recentActivity || []).map((activity: any) => this.mapActivityData(activity))
+    };
+  }
+
+  private mapCourseAnalytics(course: any): CourseAnalytics {
+    return {
+      courseId: course.courseId || course.id,
+      courseTitle: course.courseTitle || course.title,
+      totalEnrollments: course.totalEnrollments || 0,
+      completionRate: course.completionRate || 0,
+      activeStudents: course.activeStudents || 0
+    };
+  }
+
+  private mapActivityData(activity: any): ActivityData {
+    return {
+      date: activity.date,
+      activeUsers: activity.activeUsers || 0,
+      courseViews: activity.courseViews || 0,
+      timeSpent: activity.timeSpent || 0,
+      quizAttempts: activity.quizAttempts || 0
+    };
+  }
+
+  private mapRevenueData(revenue: any): any {
+    return {
+      period: revenue.period,
+      revenue: revenue.revenue || 0,
+      enrollments: revenue.enrollments || 0,
+      growth: revenue.growth || 0
+    };
+  }
+
+  private mapEngagementAnalytics(engagement: any): EngagementAnalytics {
+    return {
+      date: engagement.date,
+      activeUsers: engagement.activeUsers || 0,
+      courseViews: engagement.courseViews || 0,
+      timeSpent: engagement.timeSpent || 0,
+      quizAttempts: engagement.quizAttempts || 0
+    };
+  }
+
+  // Mock data for development (fallback)
   getMockDashboardAnalytics(): DashboardAnalytics {
     return {
-      totalRevenue: 45600,
       totalStudents: 1247,
       totalCourses: 23,
       averageCompletionRate: 78.5,
@@ -126,8 +178,6 @@ export class AnalyticsService {
           courseTitle: 'Introduction to Web Development',
           totalEnrollments: 156,
           completionRate: 85.2,
-          averageRating: 4.7,
-          totalRevenue: 12480,
           activeStudents: 142
         },
         {
@@ -135,8 +185,6 @@ export class AnalyticsService {
           courseTitle: 'Advanced React Development',
           totalEnrollments: 89,
           completionRate: 72.1,
-          averageRating: 4.8,
-          totalRevenue: 8900,
           activeStudents: 67
         },
         {
@@ -144,8 +192,6 @@ export class AnalyticsService {
           courseTitle: 'Data Science Fundamentals',
           totalEnrollments: 134,
           completionRate: 81.3,
-          averageRating: 4.6,
-          totalRevenue: 10720,
           activeStudents: 118
         }
       ],
@@ -171,26 +217,6 @@ export class AnalyticsService {
           timeSpent: 52,
           quizAttempts: 94
         }
-      ],
-      revenueTrend: [
-        {
-          period: 'Jan 2024',
-          revenue: 15600,
-          enrollments: 234,
-          growth: 15.2
-        },
-        {
-          period: 'Dec 2023',
-          revenue: 13500,
-          enrollments: 198,
-          growth: 8.7
-        },
-        {
-          period: 'Nov 2023',
-          revenue: 12400,
-          enrollments: 187,
-          growth: 12.1
-        }
       ]
     };
   }
@@ -202,8 +228,6 @@ export class AnalyticsService {
         courseTitle: 'Introduction to Web Development',
         totalEnrollments: 156,
         completionRate: 85.2,
-        averageRating: 4.7,
-        totalRevenue: 12480,
         activeStudents: 142
       },
       {
@@ -211,8 +235,6 @@ export class AnalyticsService {
         courseTitle: 'Advanced React Development',
         totalEnrollments: 89,
         completionRate: 72.1,
-        averageRating: 4.8,
-        totalRevenue: 8900,
         activeStudents: 67
       },
       {
@@ -220,8 +242,6 @@ export class AnalyticsService {
         courseTitle: 'Data Science Fundamentals',
         totalEnrollments: 134,
         completionRate: 81.3,
-        averageRating: 4.6,
-        totalRevenue: 10720,
         activeStudents: 118
       },
       {
@@ -229,8 +249,6 @@ export class AnalyticsService {
         courseTitle: 'Python for Beginners',
         totalEnrollments: 203,
         completionRate: 78.9,
-        averageRating: 4.5,
-        totalRevenue: 16240,
         activeStudents: 178
       },
       {
@@ -238,8 +256,6 @@ export class AnalyticsService {
         courseTitle: 'Machine Learning Basics',
         totalEnrollments: 67,
         completionRate: 65.4,
-        averageRating: 4.9,
-        totalRevenue: 5360,
         activeStudents: 45
       }
     ];

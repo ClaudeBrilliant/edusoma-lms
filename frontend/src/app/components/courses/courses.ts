@@ -2,11 +2,15 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CoursesService, Course, Module, Class, CourseEnrollment, CourseReview, CourseStats, CourseCategory, CourseFilter } from '../../services/courses.service';
+import { AuthService } from '../../services/auth.service';
+import { NotificationService } from '../../services/notification.service';
+import { CourseDetailModalComponent } from '../course-detail-modal/course-detail-modal.component';
+import { EnrollmentService } from '../../services/enrollment.service';
 
 @Component({
   selector: 'app-courses',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, CourseDetailModalComponent],
   templateUrl: './courses.html',
   styleUrl: './courses.css'
 })
@@ -19,7 +23,8 @@ export class CoursesComponent implements OnInit {
   stats: CourseStats | null = null;
   categories: CourseCategory[] = [];
   loading = true;
-  selectedTab = 'all-courses';
+  error: string | null = null;
+  // Removed selectedTab since we no longer have tab navigation
   selectedCourse: Course | null = null;
   selectedModule: Module | null = null;
   selectedClass: Class | null = null;
@@ -32,8 +37,9 @@ export class CoursesComponent implements OnInit {
   searchTerm = '';
   selectedCategory = 'all';
   selectedLevel = 'all';
-  selectedStatus = 'all';
+
   selectedInstructor = 'all';
+  selectedStatus = 'all';
   priceRange = { min: 0, max: 1000 };
   selectedRating = 0;
   rejectionReason = '';
@@ -54,28 +60,122 @@ export class CoursesComponent implements OnInit {
     thumbnail: ''
   };
   submitting = false;
+  enrollingCourseId: string | null = null;
 
-  constructor(private coursesService: CoursesService) {}
+  constructor(
+    private coursesService: CoursesService,
+    private authService: AuthService,
+    private notificationService: NotificationService,
+    private enrollmentService: EnrollmentService
+  ) {}
 
   ngOnInit(): void {
     this.loadCoursesData();
   }
 
   loadCoursesData(): void {
-    // Using mock data for development
-    this.courses = this.coursesService.getMockCourses();
-    this.modules = this.coursesService.getMockModules();
-    this.classes = this.coursesService.getMockClasses();
-    this.enrollments = this.coursesService.getMockEnrollments();
-    this.reviews = this.coursesService.getMockReviews();
-    this.stats = this.coursesService.getMockCourseStats();
-    this.categories = this.coursesService.getMockCategories();
-    this.loading = false;
+    this.loading = true;
+    this.error = null;
+
+    // Load courses
+    this.coursesService.getCourses().subscribe({
+      next: (courses) => {
+        this.courses = courses;
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('Error loading courses:', error);
+        this.error = 'Failed to load courses. Please try again.';
+        this.loading = false;
+      }
+    });
+
+    // Load categories
+    this.coursesService.getCategories().subscribe({
+      next: (categories) => {
+        this.categories = categories;
+      },
+      error: (error) => {
+        console.error('Error loading categories:', error);
+        // Don't show error for categories as it's not critical
+      }
+    });
+
+    // Load course stats if user is instructor or admin
+    if (this.isInstructorOrAdmin()) {
+      this.coursesService.getCourseStats().subscribe({
+        next: (stats) => {
+          this.stats = stats;
+        },
+        error: (error) => {
+          console.error('Error loading course stats:', error);
+          // Don't show error for stats as it's not critical
+        }
+      });
+    }
   }
 
+  loadCourseDetails(courseId: string): void {
+    this.coursesService.getCourseDetails(courseId).subscribe({
+      next: (course) => {
+        this.selectedCourse = course;
+        // Load modules for this course
+        this.coursesService.getModules(courseId).subscribe({
+          next: (modules) => {
+            this.modules = modules;
+          },
+          error: (error) => {
+            console.error('Error loading modules:', error);
+          }
+        });
+      },
+      error: (error) => {
+        console.error('Error loading course details:', error);
+        this.error = 'Failed to load course details.';
+      }
+    });
+  }
+
+  loadModuleClasses(moduleId: string): void {
+    this.coursesService.getClasses(moduleId).subscribe({
+      next: (classes) => {
+        this.classes = classes;
+      },
+      error: (error) => {
+        console.error('Error loading classes:', error);
+      }
+    });
+  }
+
+  loadCourseEnrollments(courseId: string): void {
+    this.coursesService.getCourseEnrollments(courseId).subscribe({
+      next: (enrollments) => {
+        this.enrollments = enrollments;
+      },
+      error: (error) => {
+        console.error('Error loading enrollments:', error);
+      }
+    });
+  }
+
+  loadCourseReviews(courseId: string): void {
+    this.coursesService.getCourseReviews(courseId).subscribe({
+      next: (reviews) => {
+        this.reviews = reviews;
+      },
+      error: (error) => {
+        console.error('Error loading reviews:', error);
+      }
+    });
+  }
+
+  // Removed ensureValidTab since we no longer have tab navigation
+
+  // Removed switchTab method since we no longer have tab navigation
+
   switchTab(tab: string): void {
-    this.selectedTab = tab;
-    this.resetForms();
+    // This method is kept for compatibility with templates that still reference it
+    console.log('Switching to tab:', tab);
   }
 
   resetForms(): void {
@@ -95,60 +195,28 @@ export class CoursesComponent implements OnInit {
     this.newReview = {};
   }
 
-  getStatusColor(status: string): string {
-    switch (status) {
-      case 'PUBLISHED':
-        return 'text-green-500 bg-green-100';
-      case 'DRAFT':
-        return 'text-gray-500 bg-gray-100';
-      case 'PENDING_APPROVAL':
-        return 'text-yellow-500 bg-yellow-100';
-      case 'REJECTED':
-        return 'text-red-500 bg-red-100';
-      case 'ARCHIVED':
-        return 'text-purple-500 bg-purple-100';
-      default:
-        return 'text-gray-500 bg-gray-100';
-    }
-  }
-
-  getStatusIcon(status: string): string {
-    switch (status) {
-      case 'PUBLISHED':
-        return 'fas fa-check-circle';
-      case 'DRAFT':
-        return 'fas fa-edit';
-      case 'PENDING_APPROVAL':
-        return 'fas fa-clock';
-      case 'REJECTED':
-        return 'fas fa-ban';
-      case 'ARCHIVED':
-        return 'fas fa-archive';
-      default:
-        return 'fas fa-question-circle';
-    }
-  }
-
-  getLevelColor(level: string): string {
-    switch (level) {
-      case 'BEGINNER':
-        return 'text-green-500 bg-green-100';
-      case 'INTERMEDIATE':
+  getCategoryColor(categoryName: string): string {
+    switch (categoryName.toLowerCase()) {
+      case 'programming':
         return 'text-blue-500 bg-blue-100';
-      case 'ADVANCED':
+      case 'design':
         return 'text-purple-500 bg-purple-100';
+      case 'business':
+        return 'text-green-500 bg-green-100';
+      case 'marketing':
+        return 'text-orange-500 bg-orange-100';
       default:
         return 'text-gray-500 bg-gray-100';
     }
   }
 
-  getApprovalStatusColor(status: string): string {
-    switch (status) {
-      case 'APPROVED':
+  getDifficultyColor(difficultyName: string): string {
+    switch (difficultyName.toLowerCase()) {
+      case 'beginner':
         return 'text-green-500 bg-green-100';
-      case 'PENDING':
+      case 'intermediate':
         return 'text-yellow-500 bg-yellow-100';
-      case 'REJECTED':
+      case 'advanced':
         return 'text-red-500 bg-red-100';
       default:
         return 'text-gray-500 bg-gray-100';
@@ -195,81 +263,147 @@ export class CoursesComponent implements OnInit {
   }
 
   formatDurationHours(hours: number): string {
-    if (hours >= 24) {
-      const days = Math.floor(hours / 24);
-      const remainingHours = hours % 24;
-      return `${days}d ${remainingHours}h`;
+    if (hours < 1) {
+      return `${Math.round(hours * 60)}m`;
     }
     return `${hours}h`;
   }
 
   viewCourse(course: Course): void {
+    console.log('viewCourse called', course); // Debug log
     this.selectedCourse = course;
     this.isViewingCourse = true;
+    this.loadCourseDetails(course.id);
   }
 
   createCourse(): void {
     this.isCreatingCourse = true;
+    this.resetForms();
   }
 
   editCourse(course: Course): void {
     this.selectedCourse = course;
-    this.newCourse = { ...course };
     this.isEditingCourse = true;
+    this.newCourse = { ...course };
   }
 
   saveCourse(): void {
-    if (this.isCreatingCourse) {
-      // TODO: Implement course creation
-      console.log('Creating course:', this.newCourse);
-    } else if (this.isEditingCourse) {
-      // TODO: Implement course update
-      console.log('Updating course:', this.newCourse);
-    }
-    this.resetForms();
+    if (!this.selectedCourse) return;
+    
+    this.submitting = true;
+    const courseData = this.newCourse;
+    
+    this.coursesService.updateCourse(this.selectedCourse.id, courseData).subscribe({
+      next: (updatedCourse) => {
+        const index = this.courses.findIndex(c => c.id === updatedCourse.id);
+        if (index !== -1) {
+          this.courses[index] = updatedCourse;
+        }
+        this.resetForms();
+        this.submitting = false;
+      },
+      error: (error) => {
+        console.error('Error updating course:', error);
+        this.error = 'Failed to update course. Please try again.';
+        this.submitting = false;
+      }
+    });
   }
 
   deleteCourse(course: Course): void {
     if (confirm(`Are you sure you want to delete "${course.title}"?`)) {
-      // TODO: Implement course deletion
-      console.log('Deleting course:', course.id);
+      this.coursesService.deleteCourse(course.id).subscribe({
+        next: () => {
+          this.courses = this.courses.filter(c => c.id !== course.id);
+          this.resetForms();
+        },
+        error: (error) => {
+          console.error('Error deleting course:', error);
+          this.error = 'Failed to delete course. Please try again.';
+        }
+      });
     }
   }
 
   publishCourse(course: Course): void {
-    if (confirm(`Publish "${course.title}"?`)) {
-      // TODO: Implement course publishing
-      console.log('Publishing course:', course.id);
-    }
+    this.coursesService.publishCourse(course.id).subscribe({
+      next: (updatedCourse) => {
+        const index = this.courses.findIndex(c => c.id === updatedCourse.id);
+        if (index !== -1) {
+          this.courses[index] = updatedCourse;
+        }
+      },
+      error: (error) => {
+        console.error('Error publishing course:', error);
+        this.error = 'Failed to publish course. Please try again.';
+      }
+    });
   }
 
   archiveCourse(course: Course): void {
-    if (confirm(`Archive "${course.title}"?`)) {
-      // TODO: Implement course archiving
-      console.log('Archiving course:', course.id);
-    }
+    this.coursesService.archiveCourse(course.id).subscribe({
+      next: (updatedCourse) => {
+        const index = this.courses.findIndex(c => c.id === updatedCourse.id);
+        if (index !== -1) {
+          this.courses[index] = updatedCourse;
+        }
+      },
+      error: (error) => {
+        console.error('Error archiving course:', error);
+        this.error = 'Failed to archive course. Please try again.';
+      }
+    });
   }
 
   submitForApproval(course: Course): void {
-    if (confirm(`Submit "${course.title}" for approval?`)) {
-      // TODO: Implement approval submission
-      console.log('Submitting course for approval:', course.id);
-    }
+    this.coursesService.submitForApproval(course.id).subscribe({
+      next: (updatedCourse) => {
+        const index = this.courses.findIndex(c => c.id === updatedCourse.id);
+        if (index !== -1) {
+          this.courses[index] = updatedCourse;
+        }
+      },
+      error: (error) => {
+        console.error('Error submitting course for approval:', error);
+        this.error = 'Failed to submit course for approval. Please try again.';
+      }
+    });
   }
 
   approveCourse(course: Course): void {
-    if (confirm(`Approve "${course.title}"?`)) {
-      // TODO: Implement course approval
-      console.log('Approving course:', course.id);
-    }
+    this.coursesService.approveCourse(course.id).subscribe({
+      next: (updatedCourse) => {
+        const index = this.courses.findIndex(c => c.id === updatedCourse.id);
+        if (index !== -1) {
+          this.courses[index] = updatedCourse;
+        }
+      },
+      error: (error) => {
+        console.error('Error approving course:', error);
+        this.error = 'Failed to approve course. Please try again.';
+      }
+    });
   }
 
   rejectCourse(course: Course): void {
-    if (this.rejectionReason.trim()) {
-      // TODO: Implement course rejection
-      console.log('Rejecting course:', course.id, 'Reason:', this.rejectionReason);
-      this.resetForms();
+    if (!this.rejectionReason.trim()) {
+      this.error = 'Please provide a rejection reason.';
+      return;
     }
+    
+    this.coursesService.rejectCourse(course.id, this.rejectionReason).subscribe({
+      next: (updatedCourse) => {
+        const index = this.courses.findIndex(c => c.id === updatedCourse.id);
+        if (index !== -1) {
+          this.courses[index] = updatedCourse;
+        }
+        this.rejectionReason = '';
+      },
+      error: (error) => {
+        console.error('Error rejecting course:', error);
+        this.error = 'Failed to reject course. Please try again.';
+      }
+    });
   }
 
   viewEnrollment(enrollment: CourseEnrollment): void {
@@ -278,69 +412,129 @@ export class CoursesComponent implements OnInit {
   }
 
   approveEnrollment(enrollment: CourseEnrollment): void {
-    // TODO: Implement enrollment approval
-    console.log('Approving enrollment:', enrollment.id);
     this.isProcessingEnrollment = true;
+    this.coursesService.approveEnrollment(enrollment.id).subscribe({
+      next: (updatedEnrollment) => {
+        const index = this.enrollments.findIndex(e => e.id === updatedEnrollment.id);
+        if (index !== -1) {
+          this.enrollments[index] = updatedEnrollment;
+        }
+        this.isProcessingEnrollment = false;
+      },
+      error: (error) => {
+        console.error('Error approving enrollment:', error);
+        this.error = 'Failed to approve enrollment. Please try again.';
+        this.isProcessingEnrollment = false;
+      }
+    });
   }
 
   rejectEnrollment(enrollment: CourseEnrollment): void {
-    if (this.rejectionReason.trim()) {
-      // TODO: Implement enrollment rejection
-      console.log('Rejecting enrollment:', enrollment.id, 'Reason:', this.rejectionReason);
-      this.isProcessingEnrollment = true;
+    if (!this.rejectionReason.trim()) {
+      this.error = 'Please provide a rejection reason.';
+      return;
     }
+    
+    this.isProcessingEnrollment = true;
+    this.coursesService.rejectEnrollment(enrollment.id, this.rejectionReason).subscribe({
+      next: (updatedEnrollment) => {
+        const index = this.enrollments.findIndex(e => e.id === updatedEnrollment.id);
+        if (index !== -1) {
+          this.enrollments[index] = updatedEnrollment;
+        }
+        this.rejectionReason = '';
+        this.isProcessingEnrollment = false;
+      },
+      error: (error) => {
+        console.error('Error rejecting enrollment:', error);
+        this.error = 'Failed to reject enrollment. Please try again.';
+        this.isProcessingEnrollment = false;
+      }
+    });
   }
 
   enrollInCourse(course: Course): void {
-    // TODO: Implement course enrollment
-    console.log('Enrolling in course:', course.id);
+    this.enrollingCourseId = course.id;
+    const enrollmentData = {
+      courseId: course.id
+    };
+
+    this.coursesService.enrollInCourse(enrollmentData).subscribe({
+      next: (enrollment) => {
+        // Add to enrollments list if viewing course enrollments
+        if (this.selectedCourse?.id === course.id) {
+          this.enrollments.push(enrollment);
+        }
+        // Optionally update local enrolled courses list here
+        this.notificationService.showSuccess('Enrollment Successful', 'Enrollment request submitted successfully!');
+        // Emit event or update shared state for My Courses component if needed
+        this.enrollmentService.emitEnrollmentChanged();
+        this.enrollingCourseId = null;
+      },
+      error: (error) => {
+        console.error('Error enrolling in course:', error);
+        this.notificationService.showError('Enrollment Failed', 'Failed to enroll in course. Please try again.');
+        this.enrollingCourseId = null;
+      }
+    });
   }
 
   getFilteredCourses(): Course[] {
     let filtered = this.courses;
 
-    if (this.searchTerm) {
-      filtered = filtered.filter(course => 
-        course.title.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        course.description.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        course.instructorName.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        course.tags.some(tag => tag.toLowerCase().includes(this.searchTerm.toLowerCase()))
+    // Filter by search term
+    if (this.searchTerm.trim()) {
+      const term = this.searchTerm.toLowerCase();
+      filtered = filtered.filter(course =>
+        course.title.toLowerCase().includes(term) ||
+        course.description.toLowerCase().includes(term) ||
+        (course.instructor?.name || '').toLowerCase().includes(term) ||
+        (course.category?.name || '').toLowerCase().includes(term)
       );
     }
 
+    // Filter by category
     if (this.selectedCategory !== 'all') {
-      filtered = filtered.filter(course => course.category === this.selectedCategory);
+      filtered = filtered.filter(course => course.category?.id === this.selectedCategory);
     }
 
+    // Filter by level
     if (this.selectedLevel !== 'all') {
-      filtered = filtered.filter(course => course.level === this.selectedLevel);
+      filtered = filtered.filter(course => course.difficulty?.name === this.selectedLevel);
     }
 
-    if (this.selectedStatus !== 'all') {
-      filtered = filtered.filter(course => course.status === this.selectedStatus);
-    }
-
+    // Filter by instructor
     if (this.selectedInstructor !== 'all') {
       filtered = filtered.filter(course => course.instructorId === this.selectedInstructor);
     }
 
-    if (this.selectedRating > 0) {
-      filtered = filtered.filter(course => course.rating >= this.selectedRating);
-    }
+    // Note: Backend doesn't have status, rating, price fields yet
+    // Filter by status
+    // if (this.selectedStatus !== 'all') {
+    //   filtered = filtered.filter(course => course.status === this.selectedStatus);
+    // }
 
-    filtered = filtered.filter(course => 
-      course.price >= this.priceRange.min && course.price <= this.priceRange.max
-    );
+    // Filter by rating
+    // if (this.selectedRating > 0) {
+    //   filtered = filtered.filter(course => course.rating >= this.selectedRating);
+    // }
+
+    // Filter by price range
+    // filtered = filtered.filter(course =>
+    //   course.price >= this.priceRange.min && course.price <= this.priceRange.max
+    // );
 
     return filtered;
   }
 
   getPublishedCourses(): Course[] {
-    return this.courses.filter(course => course.status === 'PUBLISHED');
+    // Since backend doesn't have status field, return all courses
+    return this.courses;
   }
 
   getDraftCourses(): Course[] {
-    return this.courses.filter(course => course.status === 'DRAFT');
+    // Since backend doesn't have status field, return empty array
+    return [];
   }
 
   getCourseById(courseId: string): Course | undefined {
@@ -348,19 +542,23 @@ export class CoursesComponent implements OnInit {
   }
 
   getPendingApprovalCourses(): Course[] {
-    return this.courses.filter(course => course.status === 'PENDING_APPROVAL');
+    // Backend doesn't have status field yet
+    return [];
   }
 
   getFeaturedCourses(): Course[] {
-    return this.courses.filter(course => course.isFeatured);
+    // Backend doesn't have isFeatured field yet
+    return this.courses.slice(0, 3);
   }
 
   getPopularCourses(): Course[] {
-    return this.courses.filter(course => course.isPopular);
+    // Backend doesn't have isPopular field yet
+    return this.courses.slice(0, 3);
   }
 
   getNewCourses(): Course[] {
-    return this.courses.filter(course => course.isNew);
+    // Backend doesn't have isNew field yet
+    return this.courses.slice(0, 3);
   }
 
   getCourseModules(courseId: string): Module[] {
@@ -398,14 +596,15 @@ export class CoursesComponent implements OnInit {
   getAverageRating(courseId: string): number {
     const courseReviews = this.getCourseReviews(courseId);
     if (courseReviews.length === 0) return 0;
+    
     const totalRating = courseReviews.reduce((sum, review) => sum + review.rating, 0);
-    return Math.round((totalRating / courseReviews.length) * 10) / 10;
+    return totalRating / courseReviews.length;
   }
 
   getTotalRevenue(): number {
     return this.enrollments
-      .filter(enrollment => enrollment.paymentStatus === 'PAID')
-      .reduce((total, enrollment) => total + enrollment.amount, 0);
+      .filter(e => e.paymentStatus === 'PAID')
+      .reduce((sum, e) => sum + e.amount, 0);
   }
 
   getTotalEnrollments(): number {
@@ -413,62 +612,49 @@ export class CoursesComponent implements OnInit {
   }
 
   getCompletionRate(): number {
-    const totalEnrollments = this.enrollments.length;
-    const completedEnrollments = this.enrollments.filter(enrollment => enrollment.certificateEarned).length;
-    return totalEnrollments > 0 ? Math.round((completedEnrollments / totalEnrollments) * 100) : 0;
+    const completedEnrollments = this.enrollments.filter(e => e.progress === 100);
+    return this.enrollments.length > 0 ? (completedEnrollments.length / this.enrollments.length) * 100 : 0;
   }
 
   getInstructors(): { id: string; name: string }[] {
-    const instructorMap = new Map<string, string>();
+    const instructors = new Map<string, string>();
     this.courses.forEach(course => {
-      instructorMap.set(course.instructorId, course.instructorName);
+      instructors.set(course.instructorId, course.instructor?.name || 'Unknown');
     });
-    return Array.from(instructorMap.entries()).map(([id, name]) => ({ id, name }));
+    return Array.from(instructors.entries()).map(([id, name]) => ({ id, name }));
   }
 
   getCategoryById(categoryId: string): CourseCategory | undefined {
     return this.categories.find(category => category.id === categoryId);
   }
 
-  getCategoryColor(categoryId: string): string {
-    const category = this.getCategoryById(categoryId);
-    return category?.color || '#6b7280';
-  }
-
   getCategoryIcon(categoryId: string): string {
     const category = this.getCategoryById(categoryId);
-    return category?.icon || 'fas fa-folder';
+    return category?.icon || 'fas fa-book';
   }
 
   getDiscountPrice(course: Course): number | null {
-    if (course.discountPercentage && course.originalPrice) {
-      return course.originalPrice * (1 - course.discountPercentage / 100);
-    }
+    // Backend doesn't have discount/price fields yet
     return null;
   }
 
   hasDiscount(course: Course): boolean {
-    return course.discountPercentage !== undefined && course.discountPercentage > 0;
+    // Backend doesn't have discount field yet
+    return false;
   }
 
   getDaysUntilDeadline(course: Course): number | null {
-    if (!course.enrollmentDeadline) return null;
-    const now = new Date();
-    const deadline = new Date(course.enrollmentDeadline);
-    const diffTime = deadline.getTime() - now.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    // Backend doesn't have enrollment deadline yet
+    return null;
   }
 
   isEnrollmentOpen(course: Course): boolean {
-    if (!course.enrollmentDeadline) return true;
-    return this.getDaysUntilDeadline(course)! > 0;
+    // Backend doesn't have enrollment deadline yet
+    return true;
   }
 
   getEnrollmentStatus(course: Course): string {
-    if (!course.maxStudents) return 'Open';
-    if (course.currentEnrollments >= course.maxStudents) return 'Full';
-    const percentage = (course.currentEnrollments / course.maxStudents) * 100;
-    if (percentage >= 80) return 'Almost Full';
+    // Backend doesn't have enrollment deadline or max students fields yet
     return 'Open';
   }
 
@@ -476,92 +662,139 @@ export class CoursesComponent implements OnInit {
     const status = this.getEnrollmentStatus(course);
     switch (status) {
       case 'Open':
-        return 'text-green-500';
-      case 'Almost Full':
-        return 'text-yellow-500';
+        return 'text-green-500 bg-green-100';
       case 'Full':
-        return 'text-red-500';
+        return 'text-red-500 bg-red-100';
+      case 'Enrollment Closed':
+        return 'text-gray-500 bg-gray-100';
       default:
-        return 'text-gray-500';
+        return 'text-gray-500 bg-gray-100';
     }
   }
 
   exportCourseData(): void {
-    // TODO: Implement data export
+    // Implementation for exporting course data
     console.log('Exporting course data...');
   }
 
   bulkApproveCourses(): void {
     const pendingCourses = this.getPendingApprovalCourses();
-    if (pendingCourses.length > 0) {
-      const courseIds = pendingCourses.map(course => course.id);
-      // TODO: Implement bulk approval
-      console.log('Bulk approving courses:', courseIds);
+    if (pendingCourses.length === 0) {
+      this.error = 'No pending courses to approve.';
+      return;
     }
+    
+    // Implementation for bulk approval
+    console.log('Bulk approving courses...');
   }
 
   bulkRejectCourses(): void {
     const pendingCourses = this.getPendingApprovalCourses();
-    if (pendingCourses.length > 0 && this.rejectionReason.trim()) {
-      const courseIds = pendingCourses.map(course => course.id);
-      // TODO: Implement bulk rejection
-      console.log('Bulk rejecting courses:', courseIds, 'Reason:', this.rejectionReason);
+    if (pendingCourses.length === 0) {
+      this.error = 'No pending courses to reject.';
+      return;
     }
+    
+    // Implementation for bulk rejection
+    console.log('Bulk rejecting courses...');
   }
 
   bulkApproveEnrollments(): void {
     const pendingEnrollments = this.getPendingEnrollments();
-    if (pendingEnrollments.length > 0) {
-      const enrollmentIds = pendingEnrollments.map(enrollment => enrollment.id);
-      // TODO: Implement bulk approval
-      console.log('Bulk approving enrollments:', enrollmentIds);
+    if (pendingEnrollments.length === 0) {
+      this.error = 'No pending enrollments to approve.';
+      return;
     }
+    
+    // Implementation for bulk enrollment approval
+    console.log('Bulk approving enrollments...');
   }
 
   bulkRejectEnrollments(): void {
     const pendingEnrollments = this.getPendingEnrollments();
-    if (pendingEnrollments.length > 0 && this.rejectionReason.trim()) {
-      const enrollmentIds = pendingEnrollments.map(enrollment => enrollment.id);
-      // TODO: Implement bulk rejection
-      console.log('Bulk rejecting enrollments:', enrollmentIds, 'Reason:', this.rejectionReason);
+    if (pendingEnrollments.length === 0) {
+      this.error = 'No pending enrollments to reject.';
+      return;
     }
+    
+    // Implementation for bulk enrollment rejection
+    console.log('Bulk rejecting enrollments...');
   }
 
   getStarRating(rating: number): string[] {
     const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      if (i <= rating) {
-        stars.push('fas fa-star text-yellow-400');
-      } else if (i - 0.5 <= rating) {
-        stars.push('fas fa-star-half-alt text-yellow-400');
-      } else {
-        stars.push('far fa-star text-gray-300');
-      }
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+    
+    for (let i = 0; i < fullStars; i++) {
+      stars.push('fas fa-star text-yellow-400');
     }
+    
+    if (hasHalfStar) {
+      stars.push('fas fa-star-half-alt text-yellow-400');
+    }
+    
+    const emptyStars = 5 - stars.length;
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push('far fa-star text-gray-300');
+    }
+    
     return stars;
   }
 
   getProgressColor(progress: number): string {
-    if (progress >= 80) return 'text-green-500';
-    if (progress >= 60) return 'text-blue-500';
-    if (progress >= 40) return 'text-yellow-500';
-    return 'text-red-500';
+    if (progress >= 80) return 'text-green-600';
+    if (progress >= 60) return 'text-yellow-600';
+    if (progress >= 40) return 'text-orange-600';
+    return 'text-red-600';
   }
 
   getProgressBarColor(progress: number): string {
     if (progress >= 80) return 'bg-green-500';
-    if (progress >= 60) return 'bg-blue-500';
-    if (progress >= 40) return 'bg-yellow-500';
+    if (progress >= 60) return 'bg-yellow-500';
+    if (progress >= 40) return 'bg-orange-500';
     return 'bg-red-500';
   }
 
   onSubmitCourseForm(): void {
+    if (!this.courseForm.title || !this.courseForm.description) {
+      this.error = 'Please fill in all required fields.';
+      return;
+    }
+
     this.submitting = true;
-    // TODO: Implement course creation logic
-    setTimeout(() => {
-      this.submitting = false;
-      this.isCreatingCourse = false;
-      this.resetForms();
-    }, 1000);
+    const courseData = {
+      title: this.courseForm.title,
+      description: this.courseForm.description
+    };
+
+    this.coursesService.createCourse(courseData).subscribe({
+      next: (newCourse) => {
+        this.courses.unshift(newCourse);
+        this.resetForms();
+        this.submitting = false;
+      },
+      error: (error) => {
+        console.error('Error creating course:', error);
+        this.error = 'Failed to create course. Please try again.';
+        this.submitting = false;
+      }
+    });
+  }
+
+  isLoggedIn(): boolean {
+    return this.authService.isAuthenticated;
+  }
+
+  isInstructor(): boolean {
+    return this.authService.hasRole('INSTRUCTOR');
+  }
+
+  isAdmin(): boolean {
+    return this.authService.hasRole('ADMIN');
+  }
+
+  isInstructorOrAdmin(): boolean {
+    return this.isInstructor() || this.isAdmin();
   }
 }

@@ -1,8 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { filter } from 'rxjs/operators';
+import { AuthService } from '../../services/auth.service';
+import { Subscription } from 'rxjs';
+import { NotificationService } from '../../services/notification.service';
 
 @Component({
   selector: 'app-navbar',
@@ -11,21 +14,18 @@ import { filter } from 'rxjs/operators';
   templateUrl: './navbar.html',
   styleUrl: './navbar.css'
 })
-export class Navbar implements OnInit {
+export class Navbar implements OnInit, OnDestroy {
   isMenuOpen = false;
   isUserMenuOpen = false;
   isSearchOpen = false;
   searchQuery = '';
   currentRoute = '';
-
-  // Mock user data - in real app, this would come from auth service
-  currentUser = {
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop&crop=face',
-    role: 'student',
-    isAuthenticated: false // This would be set by auth service
-  };
+  currentUser: any = null;
+  isAuthenticated = false;
+  private subscriptions = new Subscription();
+  notifications: any[] = [];
+  unreadCount = 0;
+  isNotificationDropdownOpen = false;
 
   // Navigation items for unauthenticated pages (home, about, contact, login, register)
   unauthenticatedNavigationItems = [
@@ -38,12 +38,9 @@ export class Navbar implements OnInit {
 
   // Navigation items for authenticated pages (dashboard, mycourses, etc.)
   authenticatedNavigationItems = [
-    { name: 'Dashboard', path: '/student-dashboard', icon: 'fas fa-tachometer-alt' },
     { name: 'My Courses', path: '/mycourses', icon: 'fas fa-graduation-cap' },
     { name: 'Courses', path: '/courses', icon: 'fas fa-book' },
-    { name: 'Instructors', path: '/instructors', icon: 'fas fa-chalkboard-teacher' },
-    { name: 'About', path: '/about', icon: 'fas fa-info-circle' },
-    { name: 'Contact', path: '/contact', icon: 'fas fa-envelope' }
+    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' }
   ];
 
   // Admin navigation items
@@ -52,18 +49,15 @@ export class Navbar implements OnInit {
     { name: 'Users', path: '/users', icon: 'fas fa-users' },
     { name: 'Courses', path: '/courses', icon: 'fas fa-book' },
     { name: 'Analytics', path: '/analytics', icon: 'fas fa-chart-bar' },
-    { name: 'About', path: '/about', icon: 'fas fa-info-circle' },
-    { name: 'Contact', path: '/contact', icon: 'fas fa-envelope' }
+    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' }
   ];
 
   // Instructor navigation items
   instructorNavigationItems = [
     { name: 'Instructor Dashboard', path: '/instructor-dashboard', icon: 'fas fa-chalkboard-teacher' },
-    { name: 'My Courses', path: '/mycourses', icon: 'fas fa-graduation-cap' },
     { name: 'Courses', path: '/courses', icon: 'fas fa-book' },
     { name: 'Analytics', path: '/analytics', icon: 'fas fa-chart-bar' },
-    { name: 'About', path: '/about', icon: 'fas fa-info-circle' },
-    { name: 'Contact', path: '/contact', icon: 'fas fa-envelope' }
+    { name: 'Discussions', path: '/discussions', icon: 'fas fa-comments' }
   ];
 
   userMenuItems = [
@@ -72,48 +66,62 @@ export class Navbar implements OnInit {
     { name: 'Help', path: '/help', icon: 'fas fa-question-circle' }
   ];
 
-  constructor(private router: Router) {}
+  constructor(
+    private router: Router,
+    private authService: AuthService,
+    private notificationService: NotificationService
+  ) {}
 
   ngOnInit(): void {
     // Listen to route changes
-    this.router.events.pipe(
-      filter(event => event instanceof NavigationEnd)
-    ).subscribe((event: NavigationEnd) => {
-      this.currentRoute = event.url;
-      this.closeMenus();
-      this.updateAuthenticationStatus();
-    });
+    this.subscriptions.add(
+      this.router.events.pipe(
+        filter(event => event instanceof NavigationEnd)
+      ).subscribe((event: NavigationEnd) => {
+        this.currentRoute = event.url;
+        this.closeMenus();
+        this.updateAuthenticationStatus();
+      })
+    );
 
     // Set initial route
     this.currentRoute = this.router.url;
     this.updateAuthenticationStatus();
-  }
 
-  updateAuthenticationStatus(): void {
-    // Check if user is on authenticated pages
-    const authenticatedRoutes = [
-      '/student-dashboard',
-      '/instructor-dashboard',
-      '/admin-dashboard',
-      '/mycourses',
-      '/profile',
-      '/messages',
-      '/notifications',
-      '/instructors'
-    ];
-    
-    this.currentUser.isAuthenticated = authenticatedRoutes.some(route => 
-      this.currentRoute.startsWith(route)
+    // Listen to authentication changes
+    this.subscriptions.add(
+      this.authService.currentUser$.subscribe(user => {
+        this.currentUser = user;
+        this.isAuthenticated = !!user;
+        this.updateAuthenticationStatus();
+      })
+    );
+
+    this.subscriptions.add(
+      this.notificationService.getNotifications().subscribe(notifs => {
+        this.notifications = notifs;
+        // Fix: If 'isRead' property does not exist, count all as unread
+        this.unreadCount = notifs.length;
+      })
     );
   }
 
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
+  }
+
+  updateAuthenticationStatus(): void {
+    // Update authentication status based on current user
+    this.isAuthenticated = !!this.currentUser;
+  }
+
   get navigationItems() {
-    if (!this.currentUser.isAuthenticated) {
+    if (!this.isAuthenticated) {
       return this.unauthenticatedNavigationItems;
     }
     
     // Return role-based navigation
-    switch (this.currentUser.role) {
+    switch (this.currentUser?.role?.toLowerCase()) {
       case 'admin':
         return this.adminNavigationItems;
       case 'instructor':
@@ -124,7 +132,7 @@ export class Navbar implements OnInit {
   }
 
   isAuthenticatedPage(): boolean {
-    return this.currentUser.isAuthenticated;
+    return this.isAuthenticated;
   }
 
   toggleMenu(): void {
@@ -142,6 +150,10 @@ export class Navbar implements OnInit {
     }
   }
 
+  toggleNotificationDropdown(): void {
+    this.isNotificationDropdownOpen = !this.isNotificationDropdownOpen;
+  }
+
   closeMenus(): void {
     this.isMenuOpen = false;
     this.isUserMenuOpen = false;
@@ -157,44 +169,49 @@ export class Navbar implements OnInit {
   }
 
   logout(): void {
-    // TODO: Implement logout functionality
-    console.log('Logging out...');
-    this.currentUser.isAuthenticated = false;
-    this.router.navigate(['/']);
+    // Close any open menus first
+    this.closeMenus();
+    
+    // Call the auth service logout method
+    this.authService.logout().subscribe({
+      next: () => {
+        console.log('Logout successful');
+        // Navigate to home page after successful logout
+        this.router.navigate(['/']);
+      },
+      error: (error) => {
+        console.error('Logout error:', error);
+        // Even if logout fails on server, clear local state and navigate
+        this.router.navigate(['/']);
+      }
+    });
   }
 
   getNotificationCount(): number {
-    // Mock notification count
-    return 3;
+    return this.unreadCount;
   }
 
   getCartItemCount(): number {
-    // Mock cart item count
+    // TODO: Implement real cart item count
     return 2;
   }
 
-  // Method to simulate successful login
-  simulateLogin(): void {
-    this.currentUser.isAuthenticated = true;
-    this.router.navigate(['/student-dashboard']);
+  getUserDisplayName(): string {
+    if (!this.currentUser) return '';
+    return this.currentUser.name || 'User';
   }
 
-  // Methods to switch roles for testing
-  switchToAdmin(): void {
-    this.currentUser.role = 'admin';
-    this.currentUser.isAuthenticated = true;
-    this.router.navigate(['/admin-dashboard']);
+  getUserAvatar(): string {
+    if (!this.currentUser || !this.currentUser.avatar) {
+      // Return default avatar based on user's name
+      const name = this.currentUser?.name || 'U';
+      return `https://ui-avatars.com/api/?name=${name}&background=2563eb&color=fff&size=40`;
+    }
+    return this.currentUser.avatar;
   }
 
-  switchToInstructor(): void {
-    this.currentUser.role = 'instructor';
-    this.currentUser.isAuthenticated = true;
-    this.router.navigate(['/instructor-dashboard']);
-  }
-
-  switchToStudent(): void {
-    this.currentUser.role = 'student';
-    this.currentUser.isAuthenticated = true;
-    this.router.navigate(['/student-dashboard']);
+  getUserRole(): string {
+    if (!this.currentUser) return '';
+    return this.currentUser.role?.toLowerCase() || 'student';
   }
 }

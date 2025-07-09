@@ -1,7 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CertificateService, Certificate, CertificateTemplate, CertificateRequest, CertificateStats } from '../../services/certificate.service';
+import { CertificateService, Certificate, CertificateRequest, CertificateStats } from '../../services/certificate.service';
+import { NotificationService } from '../../services/notification.service';
+import { ProgressService } from '../../services/progress.service';
 
 @Component({
   selector: 'app-certificate',
@@ -12,7 +14,6 @@ import { CertificateService, Certificate, CertificateTemplate, CertificateReques
 })
 export class CertificateComponent implements OnInit {
   certificates: Certificate[] = [];
-  templates: CertificateTemplate[] = [];
   requests: CertificateRequest[] = [];
   stats: CertificateStats | null = null;
   loading = true;
@@ -20,20 +21,72 @@ export class CertificateComponent implements OnInit {
   searchTerm = '';
   selectedStatus = 'all';
   verificationNumber = '';
+  completedCourses: Set<string> = new Set();
 
-  constructor(private certificateService: CertificateService) {}
+  constructor(
+    private certificateService: CertificateService,
+    private notificationService: NotificationService,
+    private progressService: ProgressService
+  ) {}
 
   ngOnInit(): void {
     this.loadCertificateData();
+    this.loadCompletedCourses();
   }
 
   loadCertificateData(): void {
-    // Using mock data for development
-    this.certificates = this.certificateService.getMockCertificates();
-    this.templates = this.certificateService.getMockTemplates();
-    this.requests = this.certificateService.getMockCertificateRequests();
-    this.stats = this.certificateService.getMockCertificateStats();
-    this.loading = false;
+    this.loading = true;
+    
+    // Load certificates
+    this.certificateService.getMyCertificates().subscribe({
+      next: (certificates) => {
+        this.certificates = certificates;
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('Error loading certificates:', error);
+        this.loading = false;
+      }
+    });
+
+    // Load certificate stats
+    this.certificateService.getCertificateStats().subscribe({
+      next: (stats) => {
+        this.stats = stats;
+      },
+      error: (error) => {
+        console.error('Error loading certificate stats:', error);
+      }
+    });
+
+    // Load certificate requests (admin only)
+    this.certificateService.getCertificateRequests().subscribe({
+      next: (requests) => {
+        this.requests = requests;
+      },
+      error: (error) => {
+        console.error('Error loading certificate requests:', error);
+      }
+    });
+  }
+
+  loadCompletedCourses(): void {
+    // Fetch all progress records and mark completed courses
+    this.progressService.findByUser().subscribe(progressRecords => {
+      // Find completed progress records for enrollments
+      const completedEnrollmentIds = progressRecords.filter(p => p.completed && !p.moduleId).map(p => p.enrollmentId);
+      // Map enrollmentId to courseId using certificates
+      this.certificates.forEach(cert => {
+        if (completedEnrollmentIds.includes(cert.id)) {
+          this.completedCourses.add(cert.courseId);
+        }
+      });
+    });
+  }
+
+  canDownloadCertificate(certificate: Certificate): boolean {
+    // Only allow download if the course is completed
+    return this.completedCourses.has(certificate.courseId);
   }
 
   switchTab(tab: string): void {
@@ -87,34 +140,79 @@ export class CertificateComponent implements OnInit {
   }
 
   downloadCertificate(certificate: Certificate): void {
-    // TODO: Implement certificate download
-    console.log('Downloading certificate:', certificate.certificateNumber);
+    if (certificate.url) {
+      // Extract filename from URL
+      const fileName = certificate.url.split('/').pop() || certificate.certificateNumber;
+      this.certificateService.downloadCertificate(fileName).subscribe({
+        next: (blob) => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${certificate.certificateNumber}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          this.notificationService.showSuccess('Certificate Downloaded', 'Your certificate has been downloaded successfully!');
+        },
+        error: (error) => {
+          console.error('Error downloading certificate:', error);
+          this.notificationService.showError('Download Failed', 'Failed to download certificate. Please try again or contact support.');
+        }
+      });
+    } else {
+      this.notificationService.showError('No Certificate File', 'Certificate file not available for download.');
+    }
   }
 
   viewCertificate(certificate: Certificate): void {
-    // TODO: Implement certificate preview
-    console.log('Viewing certificate:', certificate.certificateNumber);
+    if (certificate.url) {
+      window.open(certificate.url, '_blank');
+    }
   }
 
   revokeCertificate(certificate: Certificate): void {
-    // TODO: Implement certificate revocation
-    console.log('Revoking certificate:', certificate.certificateNumber);
+    if (confirm(`Are you sure you want to revoke certificate ${certificate.certificateNumber}?`)) {
+      this.certificateService.revokeCertificate(certificate.id).subscribe({
+        next: (updatedCertificate) => {
+          // Update the certificate in the list
+          const index = this.certificates.findIndex(c => c.id === certificate.id);
+          if (index !== -1) {
+            this.certificates[index] = updatedCertificate;
+          }
+        },
+        error: (error) => {
+          console.error('Error revoking certificate:', error);
+        }
+      });
+    }
   }
 
   approveRequest(request: CertificateRequest): void {
-    // TODO: Implement request approval
+    // TODO: Implement request approval when backend endpoint is available
     console.log('Approving request:', request.id);
   }
 
   rejectRequest(request: CertificateRequest): void {
-    // TODO: Implement request rejection
+    // TODO: Implement request rejection when backend endpoint is available
     console.log('Rejecting request:', request.id);
   }
 
   verifyCertificate(): void {
     if (this.verificationNumber.trim()) {
-      // TODO: Implement certificate verification
-      console.log('Verifying certificate:', this.verificationNumber);
+      this.certificateService.verifyCertificate(this.verificationNumber).subscribe({
+        next: (result) => {
+          if (result.isValid) {
+            alert('Certificate is valid!');
+          } else {
+            alert(`Certificate verification failed: ${result.reason}`);
+          }
+        },
+        error: (error) => {
+          console.error('Error verifying certificate:', error);
+          alert('Error verifying certificate');
+        }
+      });
     }
   }
 

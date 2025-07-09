@@ -1,68 +1,25 @@
 <div class="min-h-screen bg-primary text-white">
-  <!-- Navbar -->
-  <app-navbar></app-navbar>
   <!-- Hero Section -->
-  <section class="bg-gradient-to-br from-primary to-secondary py-20">
+  <section class="relative py-20">
     <div class="w-full px-2 sm:px-4">
       <div class="text-center">
         <h1 class="text-4xl md:text-6xl font-bold text-white mb-6">
           Discover Your Next Learning Journey
         </h1>
         <p class="text-xl text-accent mb-8 max-w-3xl mx-auto">
-          Explore thousands of courses from top instructors around the world. 
+          Explore thousands of courses from top instructors around the world.
           Start learning today and unlock your potential.
         </p>
         <div class="flex flex-col sm:flex-row gap-4 justify-center">
-          <button class="bg-accent hover:bg-secondary text-white px-8 py-3 rounded-lg text-lg font-semibold transition-colors">
+          <button
+            class="bg-accent hover:bg-secondary text-white px-8 py-3 rounded-lg text-lg font-semibold transition-colors"
+            (click)="goToCourses()">
             <i class="fas fa-search mr-2"></i>Browse Courses
           </button>
-          <button class="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary px-8 py-3 rounded-lg text-lg font-semibold transition-colors">
+          <button
+            class="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary px-8 py-3 rounded-lg text-lg font-semibold transition-colors">
             <i class="fas fa-play mr-2"></i>Watch Demo
           </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Search and Filters Section -->
-  <section class="bg-secondary py-8 border-b border-accent">
-    <div class="w-full px-2 sm:px-4">
-      <div class="bg-primary rounded-lg p-6">
-        <div class="flex flex-col lg:flex-row gap-4">
-          <div class="flex-1">
-            <input 
-              type="text" 
-              [(ngModel)]="searchTerm"
-              placeholder="Search for courses, instructors, or topics..."
-              class="w-full bg-secondary text-white px-4 py-3 rounded-lg border border-accent focus:outline-none focus:border-accent text-lg"
-            >
-          </div>
-          <div class="flex flex-col sm:flex-row gap-4">
-            <select 
-              [(ngModel)]="selectedCategory"
-              class="bg-secondary text-white px-4 py-3 rounded-lg border border-accent focus:outline-none focus:border-accent"
-            >
-              <option value="all">All Categories</option>
-              <option *ngFor="let category of categories" [value]="category.name">{{ category.name }}</option>
-            </select>
-            <select 
-              [(ngModel)]="selectedLevel"
-              class="bg-secondary text-white px-4 py-3 rounded-lg border border-accent focus:outline-none focus:border-accent"
-            >
-              <option value="all">All Levels</option>
-              <option value="BEGINNER">Beginner</option>
-              <option value="INTERMEDIATE">Intermediate</option>
-              <option value="ADVANCED">Advanced</option>
-            </select>
-            <select 
-              [(ngModel)]="selectedRating"
-              class="bg-secondary text-white px-4 py-3 rounded-lg border border-accent focus:outline-none focus:border-accent"
-            >
-              <option value="0">Any Rating</option>
-              <option value="4">4+ Stars</option>
-              <option value="4.5">4.5+ Stars</option>
-            </select>
-          </div>
         </div>
       </div>
     </div>
@@ -75,12 +32,15 @@
         <h2 class="text-3xl font-bold text-white mb-4">Featured Courses</h2>
         <p class="text-accent text-lg">Handpicked courses from our top instructors</p>
       </div>
-      
+
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <div *ngFor="let course of getFeaturedCourses().slice(0, 6)" class="bg-secondary rounded-lg border border-accent overflow-hidden hover:shadow-lg transition-all duration-300">
+        <div *ngFor="let course of getFeaturedCourses().slice(0, 6)"
+          class="bg-secondary rounded-lg border border-accent overflow-hidden hover:shadow-lg transition-all duration-300">
           <!-- Course Image -->
           <div class="relative h-48 bg-gradient-to-br from-accent to-secondary">
-            <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
+            <div class="w-full h-full flex items-center justify-center">
+              <i class="fas fa-graduation-cap text-6xl text-white opacity-50"></i>
+            </div>
             <div class="absolute top-4 left-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
                 <i class="fas fa-star mr-1"></i>Featured
@@ -88,12 +48,7 @@
             </div>
             <div class="absolute top-4 right-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                {{ course.level }}
-              </span>
-            </div>
-            <div *ngIf="hasDiscount(course)" class="absolute bottom-4 left-4">
-              <span class="bg-accent text-white px-2 py-1 rounded text-xs font-medium">
-                {{ course.discountPercentage }}% OFF
+                {{ course.difficulty.name }}
               </span>
             </div>
           </div>
@@ -101,51 +56,38 @@
           <!-- Course Content -->
           <div class="p-6">
             <h3 class="text-xl font-semibold text-white mb-2 line-clamp-2">{{ course.title }}</h3>
-            <p class="text-accent text-sm mb-4 line-clamp-2">{{ course.shortDescription }}</p>
-            
-            <div class="flex items-center mb-3">
-              <div class="flex items-center">
-                <i *ngFor="let star of getStarRating(course.rating)" [class]="star" class="text-sm"></i>
-                <span class="text-accent text-sm ml-1">({{ course.totalReviews }})</span>
-              </div>
-            </div>
+            <p class="text-accent text-sm mb-4 line-clamp-2">{{ course.description }}</p>
 
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-accent text-sm">
                 <i class="fas fa-user mr-1"></i>
-                <span>{{ course.instructorName }}</span>
+                <span>{{ course.instructor.name }}</span>
               </div>
               <div class="flex items-center text-accent text-sm">
-                <i class="fas fa-clock mr-1"></i>
-                <span>{{ formatDurationHours(course.duration) }}</span>
+                <i class="fas fa-calendar mr-1"></i>
+                <span>{{ formatDate(course.createdAt) }}</span>
               </div>
             </div>
 
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-accent text-sm">
                 <i class="fas fa-users mr-1"></i>
-                <span>{{ course.currentEnrollments }} enrolled</span>
+                <span>{{ course._count?.enrollments || 0 }} enrolled</span>
               </div>
-              <div [class]="getEnrollmentStatusColor(course)" class="text-sm font-medium">
-                {{ getEnrollmentStatus(course) }}
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between mb-4">
-              <div class="text-lg font-bold text-white">
-                <span *ngIf="hasDiscount(course)" class="line-through text-accent text-sm mr-2">
-                  {{ formatCurrency(course.originalPrice || 0, course.currency) }}
-                </span>
-                {{ formatCurrency(course.price, course.currency) }}
+              <div class="flex items-center text-accent text-sm">
+                <i class="fas fa-book mr-1"></i>
+                <span>{{ course._count?.modules || 0 }} modules</span>
               </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="flex space-x-2">
-              <button (click)="viewCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
+              <button (click)="viewCourse(course)"
+                class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
                 <i class="fas fa-eye mr-1"></i>View Details
               </button>
-              <button (click)="enrollInCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
+              <button (click)="enrollInCourse(course)"
+                class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
                 <i class="fas fa-graduation-cap mr-1"></i>Enroll Now
               </button>
             </div>
@@ -162,12 +104,15 @@
         <h2 class="text-3xl font-bold text-white mb-4">Popular Courses</h2>
         <p class="text-accent text-lg">Most enrolled courses this month</p>
       </div>
-      
+
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <div *ngFor="let course of getPopularCourses().slice(0, 6)" class="bg-primary rounded-lg border border-accent overflow-hidden hover:shadow-lg transition-all duration-300">
+        <div *ngFor="let course of getPopularCourses().slice(0, 6)"
+          class="bg-primary rounded-lg border border-accent overflow-hidden hover:shadow-lg transition-all duration-300">
           <!-- Course Image -->
           <div class="relative h-48 bg-gradient-to-br from-accent to-secondary">
-            <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
+            <div class="w-full h-full flex items-center justify-center">
+              <i class="fas fa-graduation-cap text-6xl text-white opacity-50"></i>
+            </div>
             <div class="absolute top-4 left-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
                 <i class="fas fa-fire mr-1"></i>Popular
@@ -175,7 +120,7 @@
             </div>
             <div class="absolute top-4 right-4">
               <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                {{ course.level }}
+                {{ course.difficulty.name }}
               </span>
             </div>
           </div>
@@ -183,48 +128,38 @@
           <!-- Course Content -->
           <div class="p-6">
             <h3 class="text-xl font-semibold text-white mb-2 line-clamp-2">{{ course.title }}</h3>
-            <p class="text-accent text-sm mb-4 line-clamp-2">{{ course.shortDescription }}</p>
-            
-            <div class="flex items-center mb-3">
-              <div class="flex items-center">
-                <i *ngFor="let star of getStarRating(course.rating)" [class]="star" class="text-sm"></i>
-                <span class="text-accent text-sm ml-1">({{ course.totalReviews }})</span>
-              </div>
-            </div>
+            <p class="text-accent text-sm mb-4 line-clamp-2">{{ course.description }}</p>
 
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-accent text-sm">
                 <i class="fas fa-user mr-1"></i>
-                <span>{{ course.instructorName }}</span>
+                <span>{{ course.instructor.name }}</span>
               </div>
               <div class="flex items-center text-accent text-sm">
-                <i class="fas fa-clock mr-1"></i>
-                <span>{{ formatDurationHours(course.duration) }}</span>
+                <i class="fas fa-calendar mr-1"></i>
+                <span>{{ formatDate(course.createdAt) }}</span>
               </div>
             </div>
 
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center text-accent text-sm">
                 <i class="fas fa-users mr-1"></i>
-                <span>{{ course.currentEnrollments }} enrolled</span>
+                <span>{{ course._count?.enrollments || 0 }} enrolled</span>
               </div>
-              <div [class]="getEnrollmentStatusColor(course)" class="text-sm font-medium">
-                {{ getEnrollmentStatus(course) }}
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between mb-4">
-              <div class="text-lg font-bold text-white">
-                {{ formatCurrency(course.price, course.currency) }}
+              <div class="flex items-center text-accent text-sm">
+                <i class="fas fa-book mr-1"></i>
+                <span>{{ course._count?.modules || 0 }} modules</span>
               </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="flex space-x-2">
-              <button (click)="viewCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
+              <button (click)="viewCourse(course)"
+                class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
                 <i class="fas fa-eye mr-1"></i>View Details
               </button>
-              <button (click)="enrollInCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
+              <button (click)="enrollInCourse(course)"
+                class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
                 <i class="fas fa-graduation-cap mr-1"></i>Enroll Now
               </button>
             </div>
@@ -234,143 +169,29 @@
     </div>
   </section>
 
-  <!-- All Courses Section -->
-  <section class="py-16">
-    <div class="w-full px-2 sm:px-4">
-      <div class="text-center mb-12">
-        <h2 class="text-3xl font-bold text-white mb-4">All Available Courses</h2>
-        <p class="text-accent text-lg">Browse our complete course catalog</p>
-      </div>
-      
-      <!-- Loading State -->
-      <div *ngIf="loading" class="flex justify-center items-center h-64">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-      </div>
-
-      <!-- Courses Grid -->
-      <div *ngIf="!loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <div *ngFor="let course of getFilteredCourses()" class="bg-secondary rounded-lg border border-accent overflow-hidden hover:shadow-lg transition-all duration-300">
-          <!-- Course Image -->
-          <div class="relative h-48 bg-gradient-to-br from-accent to-secondary">
-            <img [src]="course.thumbnail" [alt]="course.title" class="w-full h-full object-cover">
-            <div class="absolute top-4 left-4">
-              <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                <i [class]="getStatusIcon(course.status)" class="mr-1"></i>
-                {{ course.status }}
-              </span>
-            </div>
-            <div class="absolute top-4 right-4">
-              <span class="bg-accent text-white px-2 py-1 rounded-full text-xs font-medium">
-                {{ course.level }}
-              </span>
-            </div>
-            <div *ngIf="hasDiscount(course)" class="absolute bottom-4 left-4">
-              <span class="bg-accent text-white px-2 py-1 rounded text-xs font-medium">
-                {{ course.discountPercentage }}% OFF
-              </span>
-            </div>
-            <div *ngIf="course.enrollmentDeadline" class="absolute bottom-4 right-4">
-              <span class="bg-accent text-white px-2 py-1 rounded text-xs font-medium">
-                <i class="fas fa-clock mr-1"></i>{{ getDaysUntilDeadline(course) }}d left
-              </span>
-            </div>
-          </div>
-
-          <!-- Course Content -->
-          <div class="p-6">
-            <h3 class="text-lg font-semibold text-white mb-2 line-clamp-2">{{ course.title }}</h3>
-            <p class="text-accent text-sm mb-4 line-clamp-3">{{ course.shortDescription }}</p>
-            
-            <div class="flex items-center mb-3">
-              <div class="flex items-center">
-                <i *ngFor="let star of getStarRating(course.rating)" [class]="star" class="text-sm"></i>
-                <span class="text-accent text-sm ml-1">({{ course.totalReviews }})</span>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center text-accent text-sm">
-                <i class="fas fa-user mr-1"></i>
-                <span>{{ course.instructorName }}</span>
-              </div>
-              <div class="flex items-center text-accent text-sm">
-                <i class="fas fa-clock mr-1"></i>
-                <span>{{ formatDurationHours(course.duration) }}</span>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center text-accent text-sm">
-                <i class="fas fa-users mr-1"></i>
-                <span>{{ course.currentEnrollments }} enrolled</span>
-              </div>
-              <div class="flex items-center text-accent text-sm">
-                <i class="fas fa-play-circle mr-1"></i>
-                <span>{{ course.totalClasses }} classes</span>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between mb-4">
-              <div class="text-lg font-bold text-white">
-                <span *ngIf="hasDiscount(course)" class="line-through text-accent text-sm mr-2">
-                  {{ formatCurrency(course.originalPrice || 0, course.currency) }}
-                </span>
-                {{ formatCurrency(course.price, course.currency) }}
-              </div>
-              <div [class]="getEnrollmentStatusColor(course)" class="text-sm font-medium">
-                {{ getEnrollmentStatus(course) }}
-              </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="flex space-x-2">
-              <button (click)="viewCourse(course)" class="flex-1 bg-accent hover:bg-secondary text-white px-3 py-2 rounded text-sm transition-colors">
-                <i class="fas fa-eye mr-1"></i>View
-              </button>
-              <button 
-                (click)="enrollInCourse(course)" 
-                [disabled]="!isEnrollmentOpen(course)"
-                [class]="isEnrollmentOpen(course) ? 'bg-accent hover:bg-secondary' : 'bg-accent opacity-50 cursor-not-allowed'"
-                class="flex-1 text-white px-3 py-2 rounded text-sm transition-colors"
-              >
-                <i class="fas fa-graduation-cap mr-1"></i>
-                {{ isEnrollmentOpen(course) ? 'Enroll' : 'Closed' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- No Results -->
-      <div *ngIf="!loading && getFilteredCourses().length === 0" class="text-center py-16">
-        <div class="text-accent text-6xl mb-4">
-          <i class="fas fa-search"></i>
-        </div>
-        <h3 class="text-xl font-semibold text-white mb-2">No courses found</h3>
-        <p class="text-accent">Try adjusting your search criteria or browse our featured courses above.</p>
-      </div>
-    </div>
-  </section>
-
   <!-- Call to Action Section -->
   <section class="py-16 bg-secondary">
     <div class="w-full px-2 sm:px-4 text-center">
       <h2 class="text-3xl font-bold text-white mb-4">Ready to Start Learning?</h2>
       <p class="text-accent text-lg mb-8 max-w-2xl mx-auto">
-        Join thousands of students who are already learning and growing with our platform. 
+        Join thousands of students who are already learning and growing with our platform.
         Start your learning journey today!
       </p>
       <div class="flex flex-col sm:flex-row gap-4 justify-center">
-        <button class="bg-accent hover:bg-secondary text-white px-8 py-3 rounded-lg text-lg font-semibold transition-colors">
+        <button
+          class="bg-accent hover:bg-secondary text-white px-8 py-3 rounded-lg text-lg font-semibold transition-colors">
           <i class="fas fa-rocket mr-2"></i>Get Started
         </button>
-        <button class="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary px-8 py-3 rounded-lg text-lg font-semibold transition-colors">
+        <button
+          class="bg-transparent border-2 border-white text-white hover:bg-white hover:text-primary px-8 py-3 rounded-lg text-lg font-semibold transition-colors">
           <i class="fas fa-info-circle mr-2"></i>Learn More
         </button>
       </div>
     </div>
   </section>
-  
+
   <!-- Footer -->
   <app-footer></app-footer>
+  <app-course-detail-modal *ngIf="isViewingCourse && selectedCourse" [course]="selectedCourse"
+    (close)="closeCourseModal()"></app-course-detail-modal>
 </div>
