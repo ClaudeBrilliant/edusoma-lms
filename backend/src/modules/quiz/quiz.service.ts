@@ -289,7 +289,9 @@ export class QuizService {
     const score = correctAnswers;
     const maxScore = totalQuestions;
     const percentage = totalQuestions > 0 ? (score / maxScore) * 100 : 0;
-    const passed = percentage >= 70; // 70% passing threshold
+    // Always use 90 as the passing score
+    const passingScore = 90;
+    const passed = percentage >= passingScore;
 
     // Update attempt with results
     await this.prisma.quizAttempt.update({

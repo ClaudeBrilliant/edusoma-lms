@@ -470,6 +470,10 @@ export class CoursesComponent implements OnInit {
         // Emit event or update shared state for My Courses component if needed
         this.enrollmentService.emitEnrollmentChanged();
         this.enrollingCourseId = null;
+        // Refresh the page and redirect to My Courses
+        setTimeout(() => {
+          window.location.href = '/mycourses';
+        }, 500);
       },
       error: (error) => {
         console.error('Error enrolling in course:', error);

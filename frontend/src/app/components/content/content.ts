@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { ProgressService, CourseProgress } from '../../services/progress.service';
 import { QuizService, QuizSubmission } from '../../services/quiz.service';
 import { AuthService } from '../../services/auth.service';
@@ -10,6 +10,7 @@ import { NotificationService } from '../../services/notification.service';
 import { CoursesService, Course, Module as CourseModule } from '../../services/courses.service';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { ViewChild, ElementRef } from '@angular/core';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 interface Lesson {
   id: string;
@@ -137,6 +138,14 @@ export class Content implements OnInit {
   quizAnswers: { [questionId: string]: string } = {};
   quizResult: any = null;
 
+  videoCompletionThreshold: number = 100; // Default, will be fetched from backend
+  showPlayOverlay: boolean = true;
+  youtubePlayer: any = null;
+  youtubeProgressInterval: any = null;
+  youtubeWatchedSeconds: number = 0;
+  youtubeDuration: number = 0;
+  lastYouTubeTime: number = 0;
+
   constructor(
     private progressService: ProgressService,
     private quizService: QuizService,
@@ -144,10 +153,21 @@ export class Content implements OnInit {
     private route: ActivatedRoute,
     private notificationService: NotificationService,
     private coursesService: CoursesService,
-    private http: HttpClient
+    private http: HttpClient,
+    private sanitizer: DomSanitizer,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
+    // Fetch video completion threshold from backend
+    this.http.get<{ minVideoWatchPercentage: number }>('/api/v1/progress/settings').subscribe({
+      next: (settings) => {
+        this.videoCompletionThreshold = settings.minVideoWatchPercentage || 100;
+      },
+      error: () => {
+        this.videoCompletionThreshold = 100;
+      }
+    });
     this.route.params.subscribe(params => {
       this.courseId = params['courseId'];
       this.enrollmentId = params['enrollmentId'];
@@ -158,6 +178,18 @@ export class Content implements OnInit {
         }
       }
     });
+    // Load YouTube API if not already loaded
+    if (!window['YT']) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.body.appendChild(tag);
+    }
+    window['onYouTubeIframeAPIReady'] = () => {};
+  }
+
+  ngAfterViewInit(): void {
+    // If a YouTube lesson is selected, initialize the player
+    this.initYouTubePlayer();
   }
 
   loadCourseProgress(): void {
@@ -248,6 +280,7 @@ export class Content implements OnInit {
         this.loading = false;
       },
       (err: any) => {
+        console.error('Error loading course content:', err);
         this.error = 'Failed to load course content.';
     this.loading = false;
       }
@@ -256,11 +289,25 @@ export class Content implements OnInit {
 
   selectLesson(lesson: Lesson): void {
     this.selectedLesson = lesson;
-    // Track activity when lesson is selected
+    // Only track 'view' activity for non-quiz lessons
+    if (lesson.type !== 'QUIZ') {
     this.trackActivity('view', lesson);
+    }
     // If video, start tracking video progress
     if (lesson.type === 'VIDEO' && this.videoPlayerRef) {
       this.setupVideoProgressTracking();
+    }
+    // If YouTube, initialize player
+    if (lesson.type === 'VIDEO' && this.isYouTubeVideo(lesson.videoUrl || '')) {
+      setTimeout(() => this.initYouTubePlayer(), 0);
+    }
+    // Auto-start quiz if selected, but do NOT mark as complete
+    if (lesson.type === 'QUIZ' && lesson.quiz) {
+      this.quizStarted = true;
+      this.quizCompleted = false;
+      this.quizAnswers = {};
+      this.quizResult = null;
+      // Do NOT call completeLesson here
     }
     // Reset quiz state when selecting a different lesson
     if (lesson.type !== 'QUIZ' || !lesson.quiz) {
@@ -384,6 +431,11 @@ export class Content implements OnInit {
   }
 
   completeLesson(lesson: Lesson): void {
+    // Prevent marking as complete if this is a quiz and the quiz was not passed
+    if (lesson.type === 'QUIZ' && this.quizResult && !this.quizResult.passed) {
+      this.notificationService.showError('Quiz Not Passed', 'You must pass the quiz before marking as complete.');
+      return;
+    }
     if (!this.enrollmentId) {
       console.error('No enrollment ID available');
       return;
@@ -444,8 +496,8 @@ export class Content implements OnInit {
           this.lastVideoProgress = watchedPercentage;
           this.sendVideoProgress(this.selectedLesson!, video.currentTime, video.duration, watchedPercentage);
         }
-        // Auto-complete if watched >= 80% and not already completed
-        if (watchedPercentage >= 80 && this.selectedLesson && this.selectedLesson.status !== 'COMPLETED') {
+        // Auto-complete if watched >= threshold and not already completed
+        if (watchedPercentage >= this.videoCompletionThreshold && this.selectedLesson && this.selectedLesson.status !== 'COMPLETED') {
           this.completeLesson(this.selectedLesson);
           this.notificationService.showSuccess('Lesson Completed', 'You have finished watching the video!');
         }
@@ -457,7 +509,10 @@ export class Content implements OnInit {
         this.completeLesson(this.selectedLesson);
         this.notificationService.showSuccess('Lesson Completed', 'You have finished watching the video!');
       }
+      this.showPlayOverlay = true;
     };
+    // Show overlay if paused at start
+    this.showPlayOverlay = video.paused;
   }
 
   sendVideoProgress(lesson: Lesson, currentTime: number, duration: number, watchedPercentage: number): void {
@@ -495,12 +550,20 @@ export class Content implements OnInit {
     if (this.videoProgressTimer) {
       clearInterval(this.videoProgressTimer);
     }
+    if (this.youtubeProgressInterval) {
+      clearInterval(this.youtubeProgressInterval);
+    }
+    if (this.youtubePlayer) {
+      this.youtubePlayer.destroy();
+    }
   }
 
   // Submit quiz and record completion
   // Quiz-related methods
   startQuiz(lesson: Lesson): void {
-    if (!lesson.quiz) return;
+    if (!lesson.quiz) {
+      return;
+    }
     
     this.quizStarted = true;
     this.quizCompleted = false;
@@ -517,7 +580,9 @@ export class Content implements OnInit {
   }
 
   canSubmitQuiz(): boolean {
-    if (!this.selectedLesson?.quiz) return false;
+    if (!this.selectedLesson?.quiz) {
+      return false;
+    }
     
     // Check if all questions are answered
     const answeredQuestions = Object.keys(this.quizAnswers).length;
@@ -536,19 +601,36 @@ export class Content implements OnInit {
   submitQuiz(lesson: Lesson, answers: any): void {
     if (!lesson.quiz) {
       console.error('No quiz found for lesson');
+      this.notificationService.showError('Error', 'No quiz found for this lesson');
       return;
     }
 
+    console.log('Submitting quiz:', lesson.quiz.id);
+    console.log('Answers:', answers);
+
+    // First, start a quiz attempt
+    this.quizService.startQuiz(lesson.quiz.id).subscribe({
+      next: (attempt) => {
+        console.log('Quiz attempt started:', attempt);
+        
+        // Then submit the answers
     const submission: QuizSubmission = {
-      quizId: lesson.quiz.id,
+          quizId: lesson.quiz!.id,
       answers: Object.keys(answers).map(questionId => ({
         questionId,
         response: answers[questionId]
       }))
     };
 
-    this.quizService.submitQuiz(lesson.quiz.id, submission).subscribe({
-      next: (result) => {
+        console.log('Submitting answers for attempt:', attempt.id);
+        console.log('Submission object:', submission);
+
+        // Submit the attempt
+        this.http.post(`http://localhost:3000/api/v1/quizzes/attempts/${attempt.id}/submit`, {
+          answers: submission.answers
+        }).subscribe({
+          next: (result: any) => {
+            console.log('Quiz submission successful:', result);
         this.quizCompleted = true;
         this.quizResult = result;
         
@@ -558,22 +640,54 @@ export class Content implements OnInit {
         }
         
         // Record quiz completion in progress
-        this.http.post('/api/v1/progress/quiz-completion', {
+            this.http.post('http://localhost:3000/api/v1/progress/quiz-completion', {
           quizId: lesson.quiz?.id,
           moduleId: lesson.moduleId,
           score: result.score,
           maxScore: result.maxScore ?? lesson.quiz?.questions.length ?? 0,
           passed: result.passed
-        }).subscribe(() => {
-          // Reload progress and update UI
+            }).subscribe({
+              next: () => {
+                console.log('Quiz completion recorded successfully');
+                // Force progress bar and course completion to 100% if passed
+                if (result.passed) {
+                  lesson.status = 'COMPLETED';
+                  lesson.progress = 100;
+                  lesson.completedAt = new Date();
+                  if (this.courseProgress) {
+                    this.courseProgress.moduleProgressPercentage = 100;
+                    this.courseProgress.quizProgressPercentage = 100;
+                    this.courseProgress.overallProgressPercentage = 100;
+                    this.courseProgress.isCourseCompleted = true;
+                  }
+                  // Redirect to My Courses to view certificate
+                  setTimeout(() => {
+                    this.router.navigate(['/mycourses'], { queryParams: { completed: this.courseId } });
+                  }, 1000);
+                } else {
+                  // Reload progress and update UI for failed attempt
           this.loadCourseProgress();
-        this.notificationService.showQuizCompletion(lesson.title, result.passed, result.score);
           this.checkCanMarkComplete(lesson);
+                }
+              },
+              error: (progressError) => {
+                console.error('Error recording quiz completion:', progressError);
+                // Still show quiz result even if progress recording fails
+                this.notificationService.showError('Warning', 'Quiz submitted but progress may not be saved');
+              }
         });
       },
       error: (error) => {
-        console.error('Error submitting quiz:', error);
-        this.error = 'Failed to submit quiz';
+            console.error('Error submitting quiz answers:', error);
+            this.error = 'Failed to submit quiz answers';
+            this.notificationService.showError('Submission Failed', 'Failed to submit quiz answers. Please try again.');
+          }
+        });
+      },
+      error: (error) => {
+        console.error('Error starting quiz attempt:', error);
+        this.error = 'Failed to start quiz attempt';
+        this.notificationService.showError('Error', 'Failed to start quiz attempt. Please try again.');
       }
     });
   }
@@ -795,23 +909,153 @@ export class Content implements OnInit {
     this.materialUrl = '';
   }
 
-  markCourseCompleted(): void {
-    if (!this.enrollmentId) {
-      this.notificationService.showError('Error', 'No enrollment ID available');
-      return;
+  isVideoEmbedUrl(url: string): boolean {
+    if (!url) return false;
+    // Check for YouTube or Vimeo links
+    return /youtube\.com\/watch\?v=|youtu\.be\//.test(url) || /vimeo\.com\//.test(url);
+  }
+
+  getSafeEmbedUrl(url: string): SafeResourceUrl {
+    if (!url) return '';
+    let embedUrl = url;
+    // YouTube
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+    if (ytMatch) {
+      embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
     }
-    this.loading = true;
-    this.http.post(`/api/v1/progress/mark-course-completed/${this.enrollmentId}`, {}).subscribe({
-      next: (progress: any) => {
-        this.loading = false;
-        this.courseFullyCompleted = true;
-        this.loadCourseProgress();
-        this.notificationService.showSuccess('Course Completed', 'You have completed the entire course!');
-      },
-      error: (error) => {
-        this.loading = false;
-        this.notificationService.showError('Error', 'Failed to mark course as completed');
+    // Vimeo
+    const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+    if (vimeoMatch) {
+      embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+    }
+    return this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl);
+  }
+
+  playVideo(): void {
+    if (this.videoPlayerRef && this.videoPlayerRef.nativeElement) {
+      this.videoPlayerRef.nativeElement.play();
+    }
+  }
+
+  onVideoPlay(): void {
+    this.showPlayOverlay = false;
+  }
+
+  onVideoPause(): void {
+    // Only show overlay if not ended
+    if (this.videoPlayerRef && this.videoPlayerRef.nativeElement) {
+      const video = this.videoPlayerRef.nativeElement;
+      if (video.currentTime < video.duration) {
+        this.showPlayOverlay = true;
       }
-    });
+    }
+  }
+
+  onVideoLoaded(): void {
+    this.showPlayOverlay = true;
+  }
+
+  isYouTubeVideo(url: string): boolean {
+    return /youtube\.com\/watch\?v=|youtu\.be\//.test(url);
+  }
+
+  isVimeoVideo(url: string): boolean {
+    return /vimeo\.com\//.test(url);
+  }
+
+  initYouTubePlayer(): void {
+    if (!this.selectedLesson || !this.isYouTubeVideo(this.selectedLesson.videoUrl || '')) return;
+    // Clean up previous player
+    if (this.youtubePlayer) {
+      this.youtubePlayer.destroy();
+      this.youtubePlayer = null;
+    }
+    if (this.youtubeProgressInterval) {
+      clearInterval(this.youtubeProgressInterval);
+      this.youtubeProgressInterval = null;
+    }
+    // Get video ID
+    const url = this.selectedLesson.videoUrl || '';
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+    if (!ytMatch) return;
+    const videoId = ytMatch[1];
+    // Wait for YT API
+    const tryInit = () => {
+      if (window['YT'] && window['YT'].Player) {
+        this.youtubePlayer = new window['YT'].Player('youtube-player', {
+          videoId,
+          events: {
+            'onReady': (event: any) => {
+              this.youtubeDuration = event.target.getDuration();
+              this.youtubeWatchedSeconds = 0;
+              this.lastYouTubeTime = 0;
+              this.startYouTubeProgressTracking();
+            },
+            'onStateChange': (event: any) => {
+              if (event.data === window['YT'].PlayerState.PLAYING) {
+                this.startYouTubeProgressTracking();
+              } else if (event.data === window['YT'].PlayerState.PAUSED || event.data === window['YT'].PlayerState.ENDED) {
+                if (this.youtubeProgressInterval) {
+                  clearInterval(this.youtubeProgressInterval);
+                  this.youtubeProgressInterval = null;
+                }
+                if (event.data === window['YT'].PlayerState.ENDED) {
+                  this.youtubeWatchedSeconds = this.youtubeDuration;
+                  this.checkYouTubeCompletion();
+                }
+              }
+            }
+          },
+          playerVars: {
+            rel: 0,
+            modestbranding: 1
+          }
+        });
+      } else {
+        setTimeout(tryInit, 200);
+      }
+    };
+    tryInit();
+  }
+
+  startYouTubeProgressTracking(): void {
+    if (this.youtubeProgressInterval) {
+      clearInterval(this.youtubeProgressInterval);
+    }
+    this.youtubeProgressInterval = setInterval(() => {
+      if (this.youtubePlayer && this.youtubePlayer.getCurrentTime && this.youtubePlayer.getDuration) {
+        const currentTime = this.youtubePlayer.getCurrentTime();
+        const duration = this.youtubePlayer.getDuration();
+        if (duration > 0) {
+          // Only count forward progress
+          if (currentTime > this.lastYouTubeTime) {
+            this.youtubeWatchedSeconds += (currentTime - this.lastYouTubeTime);
+          }
+          this.lastYouTubeTime = currentTime;
+          const watchedPercentage = (this.youtubeWatchedSeconds / duration) * 100;
+          this.sendVideoProgress(this.selectedLesson!, currentTime, duration, watchedPercentage);
+          this.checkYouTubeCompletion();
+        }
+      }
+    }, 2000);
+  }
+
+  checkYouTubeCompletion(): void {
+    if (!this.selectedLesson) return;
+    const watchedPercentage = (this.youtubeWatchedSeconds / (this.youtubeDuration || 1)) * 100;
+    if (watchedPercentage >= this.videoCompletionThreshold && this.selectedLesson.status !== 'COMPLETED') {
+      this.completeLesson(this.selectedLesson);
+      this.notificationService.showSuccess('Lesson Completed', 'You have finished watching the video!');
+      if (this.youtubeProgressInterval) {
+        clearInterval(this.youtubeProgressInterval);
+      }
+    }
+  }
+}
+
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: any;
   }
 }

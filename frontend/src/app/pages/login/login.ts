@@ -81,27 +81,27 @@ export class Login {
         console.log('Login successful:', response);
         
         // Redirect to return URL or appropriate dashboard based on user role
-        const user = this.authService.currentUser;
+          const user = this.authService.currentUser;
         if (user && user.role) {
           const role = user.role.toLowerCase();
           let redirectPath = '/home';
           switch (role) {
             case 'admin':
               redirectPath = '/users';
-              break;
+                break;
             case 'instructor':
               redirectPath = '/instructor-dashboard';
-              break;
+                break;
             case 'student':
-            default:
+              default:
               redirectPath = '/home';
-              break;
-          }
+                break;
+            }
           console.log('[Login] Redirecting to:', redirectPath);
           this.router.navigate([redirectPath]);
-        } else {
+          } else {
           this.router.navigate(['/home']);
-        }
+          }
       },
       error: (error) => {
         this.isSubmitting = false;

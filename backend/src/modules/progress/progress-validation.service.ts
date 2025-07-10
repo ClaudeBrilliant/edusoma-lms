@@ -249,7 +249,7 @@ export class ProgressValidationService {
     duration: number,
     watchedPercentage: number,
   ) {
-    const isCompleted = watchedPercentage >= 80; // 80% threshold
+    const isCompleted = watchedPercentage >= 100; // 100% threshold
 
     return this.prisma.videoProgress.upsert({
       where: {
@@ -282,7 +282,7 @@ export class ProgressValidationService {
     maxScore: number,
     passed: boolean,
   ) {
-    return this.prisma.quizCompletion.upsert({
+    const quizCompletion = await this.prisma.quizCompletion.upsert({
       where: {
         userId_quizId: { userId, quizId },
       },
@@ -292,6 +292,7 @@ export class ProgressValidationService {
         passed,
         attempts: { increment: 1 },
         completedAt: new Date(),
+        moduleId,
       },
       create: {
         userId,
@@ -303,6 +304,26 @@ export class ProgressValidationService {
         completedAt: new Date(),
       },
     });
+
+    // If passed, also mark the module as completed in Progress
+    if (passed) {
+      // Find the user's enrollment for this course
+      const quiz = await this.prisma.quiz.findUnique({ where: { id: quizId } });
+      if (quiz) {
+        const enrollment = await this.prisma.enrollment.findFirst({
+          where: { userId, courseId: quiz.courseId },
+        });
+        if (enrollment) {
+          await this.prisma.progress.upsert({
+            where: { enrollmentId_moduleId: { enrollmentId: enrollment.id, moduleId } },
+            update: { completed: true, completedAt: new Date() },
+            create: { enrollmentId: enrollment.id, moduleId, completed: true, completedAt: new Date() },
+          });
+        }
+      }
+    }
+
+    return quizCompletion;
   }
 
   async getModuleAccessStats(userId: string, moduleId: string) {

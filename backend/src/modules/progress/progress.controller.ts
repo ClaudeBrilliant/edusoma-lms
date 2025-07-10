@@ -59,6 +59,14 @@ export class ProgressController {
     return this.progressService.getUserOverallProgress(user.sub);
   }
 
+  @Get('settings')
+  getProgressSettings() {
+    // In the future, this could be dynamic or fetched from config/db
+    return {
+      minVideoWatchPercentage: 100
+    };
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.progressService.findOne(id, user.sub);

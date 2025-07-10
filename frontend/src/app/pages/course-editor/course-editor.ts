@@ -168,7 +168,31 @@ export class CourseEditor implements OnInit {
       next: (module) => {
         this.notificationService.showSuccess('Module Created', 'Module has been created successfully');
         this.closeModuleModal();
-        this.loadModules();
+        // Poll the backend every second for up to 5 seconds until the new module appears
+        let pollCount = 0;
+        const pollModules = () => {
+          this.coursesService.getModules(this.courseId).subscribe({
+            next: (modules) => {
+              this.modules = modules.sort((a, b) => a.order - b.order);
+              if (modules.some(m => m.id === module.id) || pollCount >= 5) {
+                // Found the new module or max attempts reached
+                // Automatically open the quiz creation modal
+                setTimeout(() => {
+                  this.createQuiz();
+                }, 300);
+                return;
+              } else {
+                pollCount++;
+                setTimeout(pollModules, 1000);
+              }
+            },
+            error: () => {
+              pollCount++;
+              if (pollCount < 5) setTimeout(pollModules, 1000);
+            }
+          });
+        };
+        pollModules();
         this.creatingModule = false;
       },
       error: (error) => {
@@ -245,7 +269,31 @@ export class CourseEditor implements OnInit {
       next: (quiz) => {
         this.notificationService.showSuccess('Quiz Created', 'Quiz has been created successfully');
         this.closeQuizModal();
-        this.loadQuizzes();
+        // Poll the backend every second for up to 5 seconds until the new quiz appears
+        let pollCount = 0;
+        const pollQuizzes = () => {
+          this.quizService.getQuizzesByCourse(this.courseId).subscribe({
+            next: (quizzes) => {
+              this.quizzes = quizzes;
+              if (quizzes.some(q => q.id === quiz.id) || pollCount >= 5) {
+                // Found the new quiz or max attempts reached
+                // Redirect to dashboard after quiz creation
+                setTimeout(() => {
+                  this.router.navigate(['/instructor-dashboard']);
+                }, 500);
+                return;
+              } else {
+                pollCount++;
+                setTimeout(pollQuizzes, 1000);
+              }
+            },
+            error: () => {
+              pollCount++;
+              if (pollCount < 5) setTimeout(pollQuizzes, 1000);
+            }
+          });
+        };
+        pollQuizzes();
         this.creatingQuiz = false;
       },
       error: (error) => {

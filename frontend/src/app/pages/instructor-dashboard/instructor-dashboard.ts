@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { InstructorService, Course, Analytics } from '../../services/instructor.service';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-instructor-dashboard',
@@ -31,7 +32,7 @@ export class InstructorDashboard implements OnInit {
     difficultyId: ''
   };
 
-  constructor(private instructorService: InstructorService) {}
+  constructor(private instructorService: InstructorService, private router: Router) {}
 
   ngOnInit(): void {
     this.loadDashboardData();
@@ -146,12 +147,16 @@ export class InstructorDashboard implements OnInit {
     }
 
     this.creatingCourse = true;
-    
     this.instructorService.createCourse(this.newCourse).subscribe({
       next: (course: any) => {
         console.log('Course created successfully:', course);
         this.closeCreateCourseModal();
-        this.loadDashboardData(); // Reload courses to show the new one
+        // Immediately add the new course to the UI
+        this.courses = [course, ...this.courses];
+        // Navigate to course editor with modules tab open
+        setTimeout(() => {
+          this.router.navigate([`/course-editor/${course.id}`], { queryParams: { tab: 'modules' } });
+        }, 500);
         this.creatingCourse = false;
       },
       error: (error: any) => {

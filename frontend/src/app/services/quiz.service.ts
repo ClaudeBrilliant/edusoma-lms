@@ -97,11 +97,6 @@ export class QuizService {
     return this.http.post<QuizAttempt>(`${this.apiUrl}/${quizId}/start`, {});
   }
 
-  // Submit quiz answers
-  submitQuiz(quizId: string, submission: QuizSubmission): Observable<QuizResult> {
-    return this.http.post<QuizResult>(`${this.apiUrl}/${quizId}/submit`, submission);
-  }
-
   // Get quiz attempts for current user
   getMyAttempts(): Observable<QuizAttempt[]> {
     return this.http.get<QuizAttempt[]>(`${this.apiUrl}/my-attempts`);

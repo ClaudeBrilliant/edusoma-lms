@@ -20,16 +20,6 @@
     </div>
   </div>
 
-  <!-- Mark Course Complete Button -->
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex justify-end">
-    <button *ngIf="!courseFullyCompleted && !loading" (click)="markCourseCompleted()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
-      <i class="fas fa-check mr-2"></i>Mark Course Complete
-    </button>
-    <div *ngIf="courseFullyCompleted && !loading" class="text-green-400 font-bold flex items-center">
-      <i class="fas fa-check-circle mr-2"></i>Course Completed!
-    </div>
-  </div>
-
   <!-- Progress Overview -->
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -267,14 +257,39 @@
           <div class="p-6">
             <!-- Video Content -->
             <div *ngIf="selectedLesson.type === 'VIDEO' && selectedLesson.videoUrl" class="mb-6">
-              <div class="bg-black rounded-lg aspect-video flex items-center justify-center">
+              <div class="bg-black rounded-lg aspect-video flex items-center justify-center relative">
+                <!-- YouTube API Player -->
+                <div *ngIf="isYouTubeVideo(selectedLesson.videoUrl)" id="youtube-player" style="width:100%; height:480px;"></div>
+                <!-- Vimeo Embed -->
+                <ng-container *ngIf="isVimeoVideo(selectedLesson.videoUrl)">
+                  <iframe
+                    [src]="getSafeEmbedUrl(selectedLesson.videoUrl)"
+                    width="100%"
+                    height="480"
+                    frameborder="0"
+                    allowfullscreen
+                    style="border-radius: 0.5rem; background: #000; width: 100%; max-height: 480px;"
+                  ></iframe>
+                </ng-container>
+                <!-- Direct Video File -->
+                <ng-template [ngIf]="!isYouTubeVideo(selectedLesson.videoUrl) && !isVimeoVideo(selectedLesson.videoUrl)">
+                  <div *ngIf="showPlayOverlay" class="absolute inset-0 flex items-center justify-center z-10 cursor-pointer" (click)="playVideo()">
+                    <div class="bg-black bg-opacity-60 rounded-full p-8 flex items-center justify-center">
+                      <i class="fas fa-play text-white text-6xl"></i>
+                    </div>
+                  </div>
                 <video
+                    #videoPlayer
                   [src]="selectedLesson.videoUrl"
                   controls
+                    (play)="onVideoPlay()"
+                    (pause)="onVideoPause()"
+                    (loadedmetadata)="onVideoLoaded()"
                   style="width: 100%; height: 100%; max-height: 480px; background: #000; border-radius: 0.5rem;"
                 >
                   Your browser does not support the video tag.
                 </video>
+                </ng-template>
               </div>
             </div>
 
@@ -305,12 +320,7 @@
 
                 <!-- Quiz Questions -->
                 <div *ngIf="!quizStarted && !quizCompleted" class="text-center">
-                  <button 
-                    (click)="startQuiz(selectedLesson)"
-                    class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-                  >
-                    <i class="fas fa-play mr-2"></i>Start Quiz
-                  </button>
+                  <!-- No Start Quiz button, quiz is ready immediately -->
                 </div>
 
                 <!-- Quiz in Progress -->
@@ -500,7 +510,7 @@
             <!-- Action Buttons -->
             <div class="flex space-x-4">
               <button 
-                *ngIf="selectedLesson.status === 'NOT_STARTED'"
+                *ngIf="selectedLesson.type !== 'VIDEO' && selectedLesson.type !== 'QUIZ' && selectedLesson.status === 'NOT_STARTED'"
                 (click)="startLesson(selectedLesson)"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
               >
@@ -508,7 +518,7 @@
               </button>
               
               <button 
-                *ngIf="selectedLesson.status === 'IN_PROGRESS'"
+                *ngIf="selectedLesson.type !== 'VIDEO' && selectedLesson.type !== 'QUIZ' && selectedLesson.status === 'IN_PROGRESS'"
                 (click)="continueLesson(selectedLesson)"
                 class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
               >
@@ -516,7 +526,7 @@
               </button>
               
               <button 
-                *ngIf="selectedLesson.status !== 'COMPLETED'"
+                *ngIf="selectedLesson.type !== 'VIDEO' && selectedLesson.type !== 'QUIZ' && selectedLesson.status !== 'COMPLETED'"
                 (click)="completeLesson(selectedLesson)"
                 class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
               >
