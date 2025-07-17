@@ -2,7 +2,7 @@
 
 # Variables
 @baseUrl = http://localhost:3000
-@adminToken = {{loginAdmin.response.body.access_token}}
+@adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0ZTgyMmI1Mi1iYzlmLTRkMjUtODEyNS1hNzhmNDA3NWRlYjQiLCJlbWFpbCI6InZpY3RvcmlhY2xhcmU0MEBnbWFpbC5jb20iLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NTI3NDQ1MDYsImV4cCI6MTc1Mjc0ODEwNn0.F4hMCNl4M84R3E3_w93ASkEwGEJBnuxKx0nlzHb03vI
 @instructorToken = {{loginInstructor.response.body.access_token}}
 @studentToken = {{loginStudent.response.body.access_token}}
 
@@ -12,8 +12,8 @@ POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@example.com",
-  "password": "password123"
+  "email": "victoriaclare40@gmail.com",
+  "password": "Hope@020"
 }
 
 ### Login as Instructor
@@ -32,8 +32,8 @@ POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "student@example.com",
-  "password": "password123"
+  "email": "claudewandera087@gmail.com",
+  "password": "Ghost@2030"
 }
 
 ### ========================================
