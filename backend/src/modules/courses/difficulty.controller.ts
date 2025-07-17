@@ -13,7 +13,20 @@ export class DifficultyController {
   @Get()
   @Public()
   async findAll() {
-    return this.prisma.difficultyLevel.findMany();
+    const difficulties = await this.prisma.difficultyLevel.findMany({
+      select: { id: true, name: true }
+    });
+    if (!difficulties.length) {
+      return {
+        success: true,
+        data: [],
+        message: 'No difficulty levels found. Please seed the database.'
+      };
+    }
+    return {
+      success: true,
+      data: difficulties
+    };
   }
 
   @Post()

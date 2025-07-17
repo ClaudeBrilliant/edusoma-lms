@@ -13,7 +13,20 @@ export class CategoryController {
   @Get()
   @Public()
   async findAll() {
-    return this.prisma.category.findMany();
+    const categories = await this.prisma.category.findMany({
+      select: { id: true, name: true }
+    });
+    if (!categories.length) {
+      return {
+        success: true,
+        data: [],
+        message: 'No categories found. Please seed the database.'
+      };
+    }
+    return {
+      success: true,
+      data: categories
+    };
   }
 
   @Post()
