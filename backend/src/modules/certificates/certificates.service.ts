@@ -572,20 +572,20 @@ export class CertificatesService {
                 <div class="logo"></div>
                 <div class="certificate-title">Certificate of Completion</div>
                 <div class="divider"></div>
-                <div class="subtitle">This is to certify that</div>
+              <div class="subtitle">This is to certify that</div>
                 <div class="recipient">${template.studentName}</div>
-                <div class="content">
+            <div class="content">
                   has successfully completed the course
-                  <div class="course-name">${template.courseName}</div>
+              <div class="course-name">${template.courseName}</div>
                   on <b>${template.completionDate}</b>
-                </div>
-                <div class="details">
-                  <div>
+            </div>
+            <div class="details">
+              <div>
                     <strong>Certificate No:</strong><br>${template.certificateNumber}
-                  </div>
-                  <div>
+              </div>
+              <div>
                     <strong>Instructor:</strong><br>${template.instructorName}
-                  </div>
+            </div>
                 </div>
               </div>
               <div class="signature-section">
@@ -599,9 +599,9 @@ export class CertificatesService {
                   <div class="signature-label">Date<br>${template.completionDate}</div>
                 </div>
               </div>
-              <div class="verification">
-                <strong>Verification Code:</strong> ${template.verificationCode}<br>
-                This certificate can be verified at our platform.
+            <div class="verification">
+              <strong>Verification Code:</strong> ${template.verificationCode}<br>
+              This certificate can be verified at our platform.
               </div>
             </div>
           </div>
